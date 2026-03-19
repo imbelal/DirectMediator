@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="FastMediator.Abstractions/FastMediator.Abstractions.csproj" />
+  <Project Path="FastMediator.Analyzers/FastMediator.Analyzers.csproj" />
+  <Project Path="FastMediator.Generator/FastMediator.Generator.csproj" />
+  <Project Path="FastMediator.Sample/FastMediator.Sample.csproj" />
+  <Project Path="FastMediator/FastMediator.csproj" />
+</Solution>

@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FastMediator.Abstractions\FastMediator.Abstractions.csproj" />
+    <ProjectReference Include="..\FastMediator.Generator\FastMediator.Generator.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+      <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+      <PackageId>FastMediator</PackageId>
+      <Version>1.0.0</Version>
+      <Authors>Belal</Authors>
+      <Description>Zero-reflection mediator with source generators</Description>          
+  </PropertyGroup>
+
+</Project>

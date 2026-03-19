@@ -1,0 +1,64 @@
+# -----------------------
+# Build outputs
+# -----------------------
+bin/
+obj/
+out/
+TestResults/
+
+# -----------------------
+# NuGet packages
+# -----------------------
+*.nupkg
+*.snupkg
+*.nuspec
+packages/
+.nuget/
+
+# -----------------------
+# IDE / Editor files
+# -----------------------
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+*.vscode/
+
+# -----------------------
+# OS-specific files
+# -----------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux / temp
+*~
+
+# -----------------------
+# Generated code
+# -----------------------
+# Source generator output
+FastMediator.Generated.g.cs
+
+# -----------------------
+# Logs / cache
+# -----------------------
+*.log
+*.cache
+
+# -----------------------
+# Coverage / Test outputs
+# -----------------------
+coverage/
+*.coverage
+*.coveragexml
+TestResults/
