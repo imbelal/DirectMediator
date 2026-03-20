@@ -170,7 +170,7 @@ public Task Send<TCommand>(TCommand command, CancellationToken ct = default) whe
     {");
         foreach (var h in handlers)
             sb.AppendLine($"{h.Request.ToDisplayString()} c => _{Camel(h.Handler.Name)}.Handle(c, ct),");
-        sb.AppendLine(@"_ => throw new InvalidOperationException(""No handler found for command"")};");
+        sb.AppendLine(@"_ => throw new InvalidOperationException($""No handler found for command type '{(command is null ? typeof(TCommand) : command.GetType()).FullName}'"")};");
         sb.AppendLine("}");
         sb.AppendLine("}");
     }
@@ -230,7 +230,7 @@ public async Task Publish<TNotification>(TNotification notification, Cancellatio
     await _{Camel(h.Handler.Name)}.Handle(n, ct);
     break;");
         }
-        sb.AppendLine(@"default: throw new InvalidOperationException(""No handlers found for notification""); }");
+        sb.AppendLine(@"default: throw new InvalidOperationException($""No handlers found for notification type '{notification?.GetType().FullName ?? typeof(TNotification).FullName ?? typeof(TNotification).Name}'""); }");
         sb.AppendLine("}");
         sb.AppendLine("}");
     }
