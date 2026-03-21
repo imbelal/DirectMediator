@@ -22,6 +22,9 @@
   <ItemGroup>
     <ProjectReference Include="..\FastMediator\FastMediator.csproj" />
     <ProjectReference Include="..\FastMediator.Abstractions\FastMediator.Abstractions.csproj" />
+    <ProjectReference Include="..\FastMediator.Generator\FastMediator.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

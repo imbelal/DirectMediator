@@ -224,11 +224,13 @@ public async Task Publish<TNotification>(TNotification notification, Cancellatio
 {
     switch (notification)
     {");
-        foreach (var h in handlers)
+        // Group handlers by notification type so each case label appears only once
+        foreach (var group in handlers.GroupBy(h => h.Request.ToDisplayString()))
         {
-            sb.AppendLine($@"case {h.Request.ToDisplayString()} n:
-    await _{Camel(h.Handler.Name)}.Handle(n, ct);
-    break;");
+            sb.AppendLine($"case {group.Key} n:");
+            foreach (var h in group)
+                sb.AppendLine($"    await _{Camel(h.Handler.Name)}.Handle(n, ct);");
+            sb.AppendLine("    break;");
         }
         sb.AppendLine(@"default: throw new InvalidOperationException($""No handlers found for notification type '{notification?.GetType().FullName ?? typeof(TNotification).FullName ?? typeof(TNotification).Name}'""); }");
         sb.AppendLine("}");

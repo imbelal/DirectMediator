@@ -5,6 +5,18 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+    <PackageId>FastMediator.Abstractions</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Belal</Authors>
+    <Description>Abstractions (interfaces) for FastMediator – a zero-reflection mediator with source generators</Description>
+    <PackageTags>mediator;cqrs;abstractions;source-generator</PackageTags>
+    <RepositoryUrl>https://github.com/imbelal/FastMediator</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>

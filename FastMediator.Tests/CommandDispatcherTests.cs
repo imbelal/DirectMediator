@@ -1,19 +1,32 @@
 using FastMediator;
+using FastMediator.Generated;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
+
+// Handler must be public/top-level so the source generator can reference it in generated code
+public record TestCommand(string Name) : ICommand;
+public class TestCommandHandler : IRequestHandler<TestCommand, Unit>
+{
+    private readonly Action _callback;
+    public TestCommandHandler(Action callback) => _callback = callback;
+
+    public Task<Unit> Handle(TestCommand request, CancellationToken cancellationToken)
+    {
+        _callback();
+        return Task.FromResult(Unit.Value);
+    }
+}
 
 public class CommandDispatcherTests
 {
-    private record TestCommand(string Name) : ICommand;
-
     [Fact]
     public async Task CommandDispatcher_SendsCommand_HandlerCalled()
     {
         var handlerCalled = false;
 
         var services = new ServiceCollection();
-        services.AddTransient<IRequestHandler<TestCommand, Unit>>(sp =>
-            new TestHandler(() => handlerCalled = true));
+        // Register the concrete handler type so the generated CommandDispatcher can resolve it
+        services.AddTransient<TestCommandHandler>(sp =>
+            new TestCommandHandler(() => handlerCalled = true));
         services.AddSingleton<CommandDispatcher>();
 
         var provider = services.BuildServiceProvider();
@@ -22,17 +35,5 @@ public class CommandDispatcherTests
         await dispatcher.Send(new TestCommand("Test"), default);
 
         Assert.True(handlerCalled, "Handler should have been called");
-    }
-
-    private class TestHandler : IRequestHandler<TestCommand, Unit>
-    {
-        private readonly Action _callback;
-        public TestHandler(Action callback) => _callback = callback;
-
-        public Task<Unit> Handle(TestCommand request, CancellationToken cancellationToken)
-        {
-            _callback();
-            return Task.FromResult(Unit.Value);
-        }
     }
 }
