@@ -1,6 +1,6 @@
-# FastMediator
+# DirectMediator
 
-A zero-reflection mediator for .NET powered by **C# source generators**. FastMediator generates all dispatcher and publisher code at compile time, so there is no runtime reflection, no dictionary lookups, and no dynamic dispatch — just direct, strongly-typed method calls.
+A zero-reflection mediator for .NET powered by **C# source generators**. DirectMediator generates all dispatcher and publisher code at compile time, so there is no runtime reflection, no dictionary lookups, and no dynamic dispatch — just direct, strongly-typed method calls.
 
 ---
 
@@ -8,7 +8,7 @@ A zero-reflection mediator for .NET powered by **C# source generators**. FastMed
 
 - ⚡ **Zero reflection** — all routing is generated at compile time
 - 🔒 **Compile-time safety** — errors for duplicate or missing handlers are reported as build errors
-- 💉 **DI-first** — single `AddFastMediator()` call registers every handler and dispatcher
+- 💉 **DI-first** — single `AddDirectMediator()` call registers every handler and dispatcher
 - 📦 **Lightweight** — no external runtime dependencies beyond `Microsoft.Extensions.DependencyInjection`
 - 🔀 **CQRS-ready** — first-class support for Commands, Queries, and Notifications
 
@@ -16,11 +16,11 @@ A zero-reflection mediator for .NET powered by **C# source generators**. FastMed
 
 ## How It Works
 
-FastMediator uses an [Incremental Source Generator](https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/source-generators-overview) (`FastMediator.Generator`) to inspect your project at build time. It:
+DirectMediator uses an [Incremental Source Generator](https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/source-generators-overview) (`DirectMediator.Generator`) to inspect your project at build time. It:
 
 1. Discovers every class that implements `IRequestHandler<TRequest, TResponse>` or `INotificationHandler<TNotification>`.
 2. Emits compile-time diagnostics if handlers are duplicated or missing.
-3. Generates a `CommandDispatcher`, a `QueryDispatcher`, a `NotificationPublisher`, and an `AddFastMediator()` extension method — all inside the `FastMediator.Generated` namespace.
+3. Generates a `CommandDispatcher`, a `QueryDispatcher`, a `NotificationPublisher`, and an `AddDirectMediator()` extension method — all inside the `DirectMediator.Generated` namespace.
 
 Because the routing code is generated as plain C# `switch` expressions, the JIT can inline and optimize it just like hand-written code.
 
@@ -49,7 +49,7 @@ dotnet add package DirectMediator
 A command performs a side-effectful operation and returns no meaningful value (`Unit`).
 
 ```csharp
-using FastMediator;
+using DirectMediator;
 
 public record CreateOrderCommand(string Product) : ICommand;
 ```
@@ -57,7 +57,7 @@ public record CreateOrderCommand(string Product) : ICommand;
 ### 2. Implement the Command Handler
 
 ```csharp
-using FastMediator;
+using DirectMediator;
 
 public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Unit>
 {
@@ -74,7 +74,7 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Unit>
 A query reads data and returns a typed result.
 
 ```csharp
-using FastMediator;
+using DirectMediator;
 
 public record GetOrderQuery(int Id) : IQuery<string>;
 ```
@@ -82,7 +82,7 @@ public record GetOrderQuery(int Id) : IQuery<string>;
 ### 4. Implement the Query Handler
 
 ```csharp
-using FastMediator;
+using DirectMediator;
 
 public class GetOrderHandler : IRequestHandler<GetOrderQuery, string>
 {
@@ -98,7 +98,7 @@ public class GetOrderHandler : IRequestHandler<GetOrderQuery, string>
 A notification broadcasts an event to multiple handlers.
 
 ```csharp
-using FastMediator;
+using DirectMediator;
 
 public record OrderCreatedNotification(string Product) : INotification;
 ```
@@ -106,7 +106,7 @@ public record OrderCreatedNotification(string Product) : INotification;
 ### 6. Implement a Notification Handler
 
 ```csharp
-using FastMediator;
+using DirectMediator;
 
 public class OrderCreatedHandler : INotificationHandler<OrderCreatedNotification>
 {
@@ -120,16 +120,16 @@ public class OrderCreatedHandler : INotificationHandler<OrderCreatedNotification
 
 ### 7. Register and Use
 
-Call `AddFastMediator()` once during startup. The source generator automatically includes every handler it discovers.
+Call `AddDirectMediator()` once during startup. The source generator automatically includes every handler it discovers.
 
 ```csharp
-using FastMediator.Generated;
+using DirectMediator.Generated;
 using Microsoft.Extensions.DependencyInjection;
 
 var services = new ServiceCollection();
 
 // Registers all handlers, CommandDispatcher, QueryDispatcher, and NotificationPublisher
-services.AddFastMediator();
+services.AddDirectMediator();
 
 var provider = services.BuildServiceProvider();
 
@@ -193,13 +193,13 @@ Notifications are published through `INotificationPublisher.Publish<TNotificatio
 
 ## Dependency Injection
 
-The generated `AddFastMediator()` extension method on `IServiceCollection`:
+The generated `AddDirectMediator()` extension method on `IServiceCollection`:
 
 - Registers every discovered handler as **transient**
 - Registers `CommandDispatcher`, `QueryDispatcher`, and `NotificationPublisher` as **singletons**
 
 ```csharp
-services.AddFastMediator();
+services.AddDirectMediator();
 ```
 
 All three dispatchers are available directly from the DI container:
@@ -228,18 +228,18 @@ These errors appear as standard MSBuild/IDE errors — you will see them in the 
 
 ## Generated Code
 
-At build time, the generator emits a file called `FastMediator.Generated.g.cs` inside the `FastMediator.Generated` namespace. It contains:
+At build time, the generator emits a file called `DirectMediator.Generated.g.cs` inside the `DirectMediator.Generated` namespace. It contains:
 
 - **`CommandDispatcher`** — implements `ICommandDispatcher`, routes each command type to its handler via a `switch` expression.
 - **`QueryDispatcher`** — implements `IQueryDispatcherMarker`, exposes a strongly-typed `Query(...)` method per query type.
 - **`NotificationPublisher`** — implements `INotificationPublisher`, fans out each notification to all registered handlers via a `switch` statement.
-- **`FastMediatorServiceCollectionExtensions`** — provides the `AddFastMediator()` extension method.
+- **`DirectMediatorServiceCollectionExtensions`** — provides the `AddDirectMediator()` extension method.
 
 Example (abbreviated) for the sample project:
 
 ```csharp
 // Auto-generated — do not edit
-namespace FastMediator.Generated
+namespace DirectMediator.Generated
 {
     public sealed class CommandDispatcher : ICommandDispatcher
     {
@@ -298,8 +298,8 @@ namespace FastMediator.Generated
 ## Project Structure
 
 ```
-FastMediator/
-├── FastMediator.Abstractions/        # Public interfaces and value types
+DirectMediator/
+├── DirectMediator.Abstractions/        # Public interfaces and value types
 │   ├── IRequest.cs                   # Base request interface
 │   ├── ICommand.cs                   # Command marker interface
 │   ├── IQuery.cs                     # Query interface
@@ -311,13 +311,13 @@ FastMediator/
 │   ├── IQueryDispatcherMarker.cs     # Query dispatcher marker interface
 │   └── Unit.cs                       # Unit value type
 │
-├── FastMediator.Generator/           # Roslyn incremental source generator
+├── DirectMediator.Generator/           # Roslyn incremental source generator
 │   └── MediatorGenerator.cs          # Discovers handlers, validates, and emits code
 │
-├── FastMediator/                     # Main NuGet package project
-│   └── FastMediator.csproj
+├── DirectMediator/                     # Main NuGet package project
+│   └── DirectMediator.csproj
 │
-├── FastMediator.Sample/              # Example console application
+├── DirectMediator.Sample/              # Example console application
 │   ├── CreateOrderCommand.cs
 │   ├── CreateOrderHandler.cs
 │   ├── GetOrderQuery.cs
@@ -326,7 +326,7 @@ FastMediator/
 │   ├── OrderCreatedHandler.cs
 │   └── Program.cs
 │
-└── FastMediator.Tests/               # Unit tests (xUnit)
+└── DirectMediator.Tests/               # Unit tests (xUnit)
     ├── CommandDispatcherTests.cs
     ├── QueryDispatcherTests.cs
     └── NotificationPublisherTests.cs

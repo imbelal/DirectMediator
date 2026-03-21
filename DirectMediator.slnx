@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="DirectMediator.Abstractions/DirectMediator.Abstractions.csproj" />
+  <Project Path="DirectMediator.Analyzers/DirectMediator.Analyzers.csproj" />
+  <Project Path="DirectMediator.Generator/DirectMediator.Generator.csproj" />
+  <Project Path="DirectMediator.Sample/DirectMediator.Sample.csproj" />
+  <Project Path="DirectMediator/DirectMediator.csproj" />
+  <Project Path="DirectMediator.Tests/DirectMediator.Tests.csproj" />
+</Solution>
