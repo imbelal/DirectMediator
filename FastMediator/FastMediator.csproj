@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <PackageId>FastMediator</PackageId>
+    <PackageId>DirectMediator</PackageId>
     <Version>1.0.0</Version>
     <Authors>Belal</Authors>
     <Description>Zero-reflection mediator with source generators for .NET – CQRS, commands, queries, and notifications without runtime reflection</Description>

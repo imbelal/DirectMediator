@@ -28,16 +28,16 @@ Because the routing code is generated as plain C# `switch` expressions, the JIT 
 
 ## Installation
 
-Add the **FastMediator** NuGet package to your project:
+Add the **DirectMediator** NuGet package to your project:
 
 ```xml
-<PackageReference Include="FastMediator" Version="1.0.0" />
+<PackageReference Include="DirectMediator" Version="1.0.0" />
 ```
 
 Or via the .NET CLI:
 
 ```bash
-dotnet add package FastMediator
+dotnet add package DirectMediator
 ```
 
 ---
