@@ -3,11 +3,11 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>DirectMediator</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Belal</Authors>
     <Description>Zero-reflection mediator with source generators for .NET – CQRS, commands, queries, and notifications without runtime reflection</Description>
     <PackageTags>mediator;cqrs;source-generator;commands;queries;notifications</PackageTags>
-    <RepositoryUrl>https://github.com/imbelal/FastMediator</RepositoryUrl>
+    <RepositoryUrl>https://github.com/imbelal/DirectMediator</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
