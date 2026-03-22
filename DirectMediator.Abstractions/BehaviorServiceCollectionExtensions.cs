@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -66,6 +67,36 @@ public static class BehaviorServiceCollectionExtensions
             DefaultDuration = defaultCacheDuration ?? TimeSpan.FromMinutes(5)
         });
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(CachingBehavior<,>));
+        return services;
+    }
+
+    /// <summary>
+    /// Registers <see cref="ValidationBehavior{TRequest,TResponse}"/> as an open-generic
+    /// <see cref="IPipelineBehavior{TRequest,TResponse}"/> (singleton) so it validates every
+    /// request before it reaches its handler.
+    /// </summary>
+    /// <remarks>
+    /// Validators are optional. When one or more <see cref="IValidator{T}"/> instances are
+    /// registered for a request type they are all executed and any failures cause a
+    /// <see cref="FluentValidation.ValidationException"/> to be thrown before the handler is
+    /// invoked. Requests with no registered validators pass through unchanged.
+    /// <para>
+    /// Because the validation behavior is registered as a singleton in the DirectMediator
+    /// pipeline, any <see cref="IValidator{T}"/> instances it uses are effectively long-lived
+    /// and may be invoked concurrently from multiple threads. Validators must therefore be
+    /// thread-safe and must not depend on scoped services. Register validators with a
+    /// singleton-safe lifetime (for example, as singletons or as stateless transients that
+    /// do not capture scoped dependencies).
+    /// </para>
+    /// <code>
+    /// services.AddSingleton&lt;IValidator&lt;MyCommand&gt;, MyCommandValidator&gt;();
+    /// services.AddDirectMediator()
+    ///         .AddDirectMediatorValidation();
+    /// </code>
+    /// </remarks>
+    public static IServiceCollection AddDirectMediatorValidation(this IServiceCollection services)
+    {
+        services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         return services;
     }
 }
