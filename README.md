@@ -264,7 +264,9 @@ Register with DI (open-generic covers all request types):
 
 ```csharp
 services.AddDirectMediator();
-services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+// ⚠️ Behaviors must be registered as singletons — the pipeline is built once at
+// dispatcher construction time, so behaviors live for the lifetime of the singleton.
+services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 ```
 
 Multiple behaviors execute in registration order (first registered = outermost wrapper).
@@ -357,12 +359,16 @@ namespace DirectMediator.Generated
     public sealed class CommandDispatcher : ICommandDispatcher
     {
         private readonly CreateOrderHandler _createOrderHandler;
-        private readonly IServiceProvider _serviceProvider;
+        // Pre-built delegate chain — built ONCE at construction, zero per-dispatch overhead
+        private readonly System.Func<CreateOrderCommand, CancellationToken, Task<Unit>> _createOrderHandlerPipeline;
 
-        public CommandDispatcher(CreateOrderHandler createOrderHandler, IServiceProvider serviceProvider)
+        public CommandDispatcher(
+            CreateOrderHandler createOrderHandler,
+            IEnumerable<IPipelineBehavior<CreateOrderCommand, Unit>> createOrderCommandBehaviors = null!)
         {
             _createOrderHandler = createOrderHandler;
-            _serviceProvider = serviceProvider;
+            _createOrderHandlerPipeline = BuildPipeline<CreateOrderCommand, Unit>(
+                createOrderHandler, createOrderCommandBehaviors);
         }
 
         public Task Send<TCommand>(TCommand command, CancellationToken ct = default)
@@ -370,46 +376,46 @@ namespace DirectMediator.Generated
         {
             return command switch
             {
-                CreateOrderCommand c => RunPipeline<CreateOrderCommand, Unit>(c, _createOrderHandler, ct),
+                CreateOrderCommand c => (Task)_createOrderHandlerPipeline(c, ct),
                 _ => throw new InvalidOperationException(...)
             };
         }
 
-        // Builds and executes the behavior pipeline. Behaviors reversed so first-registered = outermost.
-        private Task<TResponse> RunPipeline<TRequest, TResponse>(
-            TRequest request, IRequestHandler<TRequest, TResponse> handler, CancellationToken ct)
-            where TRequest : IRequest<TResponse>
+        // Chains behaviors into a delegate once; first-registered = outermost wrapper.
+        private static System.Func<TReq, CancellationToken, Task<TResp>> BuildPipeline<TReq, TResp>(
+            IRequestHandler<TReq, TResp> handler,
+            IEnumerable<IPipelineBehavior<TReq, TResp>> behaviors)
+            where TReq : IRequest<TResp>
         {
-            var behaviors = _serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()
-                                            .Reverse().ToList();
-            RequestHandlerDelegate<TResponse> next = () => handler.Handle(request, ct);
-            foreach (var b in behaviors)
+            var list = new List<IPipelineBehavior<TReq, TResp>>(
+                behaviors ?? Enumerable.Empty<IPipelineBehavior<TReq, TResp>>());
+            System.Func<TReq, CancellationToken, Task<TResp>> chain = (req, ct) => handler.Handle(req, ct);
+            for (var i = list.Count - 1; i >= 0; i--)
             {
-                var prev = next;
-                next = () => b.Handle(request, ct, prev);
+                var b = list[i];
+                var inner = chain;
+                chain = (req, ct) => b.Handle(req, ct, () => inner(req, ct));
             }
-            return next();
+            return chain;
         }
     }
 
     public sealed class Mediator : IMediator
     {
-        // constructor omitted for brevity
+        // constructor omitted for brevity — same pattern as CommandDispatcher
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken ct = default)
         {
             return request switch
             {
-                CreateOrderCommand r => (Task<TResponse>)(object)RunPipeline<CreateOrderCommand, Unit>(r, _createOrderHandler, ct),
-                GetOrderQuery r      => (Task<TResponse>)(object)RunPipeline<GetOrderQuery, string>(r, _getOrderHandler, ct),
+                CreateOrderCommand r => (Task<TResponse>)(object)_createOrderHandlerPipeline(r, ct),
+                GetOrderQuery r      => (Task<TResponse>)(object)_getOrderHandlerPipeline(r, ct),
                 _ => throw new InvalidOperationException(...)
             };
         }
 
         public async Task Publish<TNotification>(TNotification notification, CancellationToken ct = default)
             where TNotification : INotification { /* switch over notification handlers */ }
-
-        // RunPipeline same as CommandDispatcher above
     }
 }
 ```

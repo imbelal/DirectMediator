@@ -213,7 +213,7 @@ private static System.Func<TReq, CancellationToken, Task<TResp>> BuildPipeline<T
         var ctorParams = handlers
             .Select(h => $"{h.Handler.ToDisplayString()} {Camel(h.Handler.Name)}")
             .Concat(handlers.Select(h =>
-                $"IEnumerable<IPipelineBehavior<{h.Request.ToDisplayString()}, Unit>> {behaviorParamNames[h]} = null"));
+                $"IEnumerable<IPipelineBehavior<{h.Request.ToDisplayString()}, Unit>> {behaviorParamNames[h]} = null!"));
         sb.AppendLine($"public CommandDispatcher({string.Join(", ", ctorParams)}) {{");
         foreach (var h in handlers)
         {
@@ -256,7 +256,7 @@ public Task Send<TCommand>(TCommand command, CancellationToken ct = default) whe
         var ctorParams = handlers
             .Select(h => $"{h.Handler.ToDisplayString()} {Camel(h.Handler.Name)}")
             .Concat(handlers.Select(h =>
-                $"IEnumerable<IPipelineBehavior<{h.Request.ToDisplayString()}, {h.Response.ToDisplayString()}>> {Camel(h.Request.Name)}Behaviors = null"));
+                $"IEnumerable<IPipelineBehavior<{h.Request.ToDisplayString()}, {h.Response.ToDisplayString()}>> {Camel(h.Request.Name)}Behaviors = null!"));
         sb.AppendLine($"public QueryDispatcher({string.Join(", ", ctorParams)}) {{");
         foreach (var h in handlers)
         {
@@ -334,7 +334,7 @@ public async Task Publish<TNotification>(TNotification notification, Cancellatio
             .Concat(notifications)
             .Select(h => $"{h.Handler.ToDisplayString()} {Camel(h.Handler.Name)}")
             .Concat(allRequestHandlers.Select(h =>
-                $"IEnumerable<IPipelineBehavior<{h.Request.ToDisplayString()}, {h.Response.ToDisplayString()}>> {Camel(h.Request.Name)}Behaviors = null"));
+                $"IEnumerable<IPipelineBehavior<{h.Request.ToDisplayString()}, {h.Response.ToDisplayString()}>> {Camel(h.Request.Name)}Behaviors = null!"));
         sb.AppendLine($"public Mediator({string.Join(", ", ctorParams)}) {{");
         foreach (var h in allRequestHandlers.Concat(notifications))
             sb.AppendLine($"_{Camel(h.Handler.Name)} = {Camel(h.Handler.Name)};");
