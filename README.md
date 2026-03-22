@@ -303,8 +303,8 @@ services.AddSingleton<IPipelineBehavior<CreateOrderCommand, Unit>>(sp =>
 The generated `AddDirectMediator()` extension method on `IServiceCollection`:
 
 - Registers every discovered handler as **transient**
-- Registers `CommandDispatcher`, `QueryDispatcher`, `NotificationPublisher`, and `Mediator` as **singletons**
-- Registers `IMediator` → `Mediator` as a **singleton**
+- Registers `CommandDispatcher`, `QueryDispatcher`, and `NotificationPublisher` as **singletons**
+- Registers `IMediator` (implemented by `Mediator`) as a **singleton**
 
 ```csharp
 services.AddDirectMediator();
