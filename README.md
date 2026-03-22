@@ -14,7 +14,7 @@ A zero-reflection mediator for .NET powered by **C# source generators**. DirectM
 - 🎯 **Unified interface** — single `IMediator` combining Send and Publish for easy injection and mocking
 - 🔗 **Compile-time pipeline** — `IPipelineBehavior<TRequest, TResponse>` chains are built **once at construction** (no per-dispatch reflection or service location)
 - 📋 **Built-in behaviors** — opt-in `LoggingBehavior`, `PerformanceBehavior`, and `CachingBehavior` ready to use
-- 💾 **Response caching** — implement `ICacheableRequest<TResponse>` on any query to get automatic in-memory caching with a per-request configurable TTL
+- 💾 **Response caching** — implement `ICacheableRequest<TResponse>` on any request (command or query) to get automatic in-memory caching with a per-request configurable TTL
 
 ---
 
