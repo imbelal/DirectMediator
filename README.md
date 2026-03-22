@@ -570,11 +570,16 @@ DirectMediator/
 │   ├── ICacheableRequest.cs          # Opt-in marker for cacheable requests (CacheKey + CacheDuration)
 │   ├── CachingBehaviorOptions.cs     # Default TTL options for CachingBehavior
 │   ├── ValidationBehavior.cs         # Built-in: validates requests via IValidator<TRequest> (FluentValidation)
-│   ├── BehaviorServiceCollectionExtensions.cs  # AddDirectMediatorLogging() / AddDirectMediatorPerformanceBehavior() / AddDirectMediatorCaching() / AddDirectMediatorValidation()
+│   ├── CorrelationIdBehavior.cs      # Built-in: assigns unique correlation ID for distributed tracing
+│   ├── ICorrelationContext.cs        # Interface for accessing correlation ID
+│   ├── BehaviorServiceCollectionExtensions.cs  # AddDirectMediatorLogging() / AddDirectMediatorPerformanceBehavior() / AddDirectMediatorCaching() / AddDirectMediatorValidation() / AddDirectMediatorCorrelationId()
 │   └── Unit.cs                       # Unit value type
 │
 ├── DirectMediator.Generator/           # Roslyn incremental source generator
 │   └── MediatorGenerator.cs          # Discovers handlers, validates, and emits code
+│
+├── DirectMediator.Analyzers/          # Roslyn analyzers for compile-time diagnostics
+│   └── ...
 │
 ├── DirectMediator/                     # Main NuGet package project
 │   └── DirectMediator.csproj
