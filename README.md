@@ -9,7 +9,7 @@ A zero-reflection mediator for .NET powered by **C# source generators**. DirectM
 - ⚡ **Zero reflection** — all routing is generated at compile time
 - 🔒 **Compile-time safety** — errors for duplicate or missing handlers are reported as build errors
 - 💉 **DI-first** — single `AddDirectMediator()` call registers every handler and dispatcher
-- 📦 **Lightweight** — core has no external runtime dependencies beyond `Microsoft.Extensions.DependencyInjection`; built-in behaviors add only `Microsoft.Extensions.Logging` / `Microsoft.Extensions.Caching.Memory` when opted in
+- 📦 **Lightweight** — core depends only on `Microsoft.Extensions.*` abstractions (`DependencyInjection`, `Logging.Abstractions`, `Caching.Abstractions`); enabling built-in behaviors may require additional implementation packages (e.g., logging providers, `Microsoft.Extensions.Caching.Memory` + `AddMemoryCache()`)
 - 🔀 **CQRS-ready** — first-class support for Commands, Queries, and Notifications
 - 🎯 **Unified interface** — single `IMediator` combining Send and Publish for easy injection and mocking
 - 🔗 **Compile-time pipeline** — `IPipelineBehavior<TRequest, TResponse>` chains are built **once at construction** (no per-dispatch reflection or service location)
