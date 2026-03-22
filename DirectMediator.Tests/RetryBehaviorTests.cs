@@ -1,11 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace DirectMediator.Tests;
 
@@ -323,8 +317,8 @@ public class RetryBehaviorTests
         var delays = new List<TimeSpan>();
         var options = new RetryBehaviorOptions
         {
-            MaxRetryCount = 10,
-            BaseDelay = TimeSpan.FromMilliseconds(1000),
+            MaxRetryCount = 3,
+            BaseDelay = TimeSpan.FromMilliseconds(100),
             BackoffMultiplier = 2.0,
             JitterFactor = 0.5, // 50% jitter
             Strategy = RetryStrategy.ExponentialBackoffWithJitter
@@ -335,7 +329,7 @@ public class RetryBehaviorTests
         async Task<string> Handler()
         {
             attempt++;
-            if (attempt <= 10)
+            if (attempt <= 3)
                 throw new TransientException("Fail");
             return "success";
         }
@@ -348,10 +342,10 @@ public class RetryBehaviorTests
         catch { }
 
         // Assert - Delays should be within expected range with jitter
-        Assert.Equal(10, delays.Count);
+        Assert.Equal(3, delays.Count);
         
-        // First retry: base 1000ms with 50% jitter (500ms) = 500-1500ms range
-        Assert.InRange(delays[0].TotalMilliseconds, 500, 1500);
+        // First retry: base 100ms with 50% jitter (50ms) = 50-150ms range
+        Assert.InRange(delays[0].TotalMilliseconds, 50, 150);
     }
 
     [Fact]
@@ -362,8 +356,8 @@ public class RetryBehaviorTests
         var options = new RetryBehaviorOptions
         {
             MaxRetryCount = 5,
-            BaseDelay = TimeSpan.FromMilliseconds(1000),
-            MaxDelay = TimeSpan.FromMilliseconds(5000),
+            BaseDelay = TimeSpan.FromMilliseconds(100),
+            MaxDelay = TimeSpan.FromMilliseconds(500),
             Strategy = RetryStrategy.ExponentialBackoff
         };
         var behavior = CreateBehaviorWithDelayTracking(options, delays);
@@ -384,10 +378,10 @@ public class RetryBehaviorTests
         }
         catch { }
 
-        // Assert - All delays should be capped at 5000ms
+        // Assert - All delays should be capped at 500ms
         foreach (var delay in delays)
         {
-            Assert.InRange(delay.TotalMilliseconds, 0, 5000);
+            Assert.InRange(delay.TotalMilliseconds, 0, 500);
         }
     }
 
