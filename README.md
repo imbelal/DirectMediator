@@ -282,7 +282,7 @@ DirectMediator ships four ready-to-use behaviors in the `DirectMediator.Abstract
 | `LoggingBehavior<TRequest,TResponse>` | Logs `Handling` / `Handled` messages and errors via `ILogger<TRequest>` |
 | `PerformanceBehavior<TRequest,TResponse>` | Logs a warning when a request exceeds a configurable threshold (default: 500 ms) |
 | `CachingBehavior<TRequest,TResponse>` | Caches responses in `IMemoryCache` for requests that implement `ICacheableRequest<TResponse>`; non-cacheable requests pass through unchanged |
-| `ValidationBehavior<TRequest,TResponse>` | Runs all registered `IValidator<TRequest>` instances before the handler; throws `ValidationException` if any rule fails; requests with no validators pass through unchanged |
+| `ValidationBehavior<TRequest,TResponse>` | Runs all registered `IValidator<TRequest>` instances before the handler; throws `FluentValidation.ValidationException` if any rule fails; requests with no validators pass through unchanged |
 
 Opt-in with the provided extension methods:
 
