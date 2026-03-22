@@ -563,13 +563,17 @@ DirectMediator/
 │   └── DirectMediator.csproj
 │
 ├── DirectMediator.Sample/              # Example console application
-│   ├── CreateOrderCommand.cs
-│   ├── CreateOrderHandler.cs
-│   ├── GetOrderQuery.cs
-│   ├── GetOrderHandler.cs
-│   ├── OrderCreatedNotification.cs
-│   ├── OrderCreatedHandler.cs
-│   └── Program.cs
+│   ├── CreateOrderCommand.cs          # Command with FluentValidation
+│   ├── CreateOrderHandler.cs           # Command handler
+│   ├── CreateOrderCommandValidator.cs  # FluentValidation validator
+│   ├── GetOrderQuery.cs                # Simple query
+│   ├── GetOrderHandler.cs              # Query handler
+│   ├── GetProductQuery.cs              # Cacheable query (ICacheableRequest)
+│   ├── GetProductHandler.cs            # Cacheable query handler
+│   ├── Product.cs                      # Product model
+│   ├── OrderCreatedNotification.cs     # Notification
+│   ├── OrderCreatedHandler.cs          # Notification handler
+│   └── Program.cs                      # Demo application showcasing all features
 │
 └── DirectMediator.Tests/               # Unit tests (xUnit)
     ├── CommandDispatcherTests.cs
