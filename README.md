@@ -34,7 +34,7 @@ Because the routing code is generated as plain C# `switch` expressions, the JIT 
 Add the **DirectMediator** NuGet package to your project:
 
 ```xml
-<PackageReference Include="DirectMediator" Version="1.0.0" />
+<PackageReference Include="DirectMediator" Version="1.0.1" />
 ```
 
 Or via the .NET CLI:
