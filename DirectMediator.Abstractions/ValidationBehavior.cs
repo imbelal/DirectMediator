@@ -12,8 +12,9 @@ namespace DirectMediator;
 /// <remarks>
 /// When no validators are registered for a request type the behavior passes through unchanged.
 /// Validators must be registered in the DI container (e.g.
-/// <c>services.AddSingleton&lt;IValidator&lt;MyRequest&gt;&gt;, MyRequestValidator&gt;()</c>)
-/// before <c>AddDirectMediator()</c> so that they are captured at dispatcher-construction time.
+/// <c>services.AddSingleton&lt;IValidator&lt;MyRequest&gt;, MyRequestValidator&gt;();</c>)
+/// before the service provider is built (or the dispatcher is first resolved) so that they are
+/// available to the validation behavior.
 /// </remarks>
 public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
