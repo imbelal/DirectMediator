@@ -167,4 +167,48 @@ public static class BehaviorServiceCollectionExtensions
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(RetryBehavior<,>));
         return services;
     }
+
+    /// <summary>
+    /// Registers <see cref="TelemetryBehavior{TRequest,TResponse}"/> as an open-generic
+    /// <see cref="IPipelineBehavior{TRequest,TResponse}"/> (singleton) so it instruments
+    /// every request with OpenTelemetry tracing and metrics.
+    /// </summary>
+    /// <remarks>
+    /// The telemetry behavior provides:
+    /// <list type="bullet">
+    ///     <item>Distributed tracing via System.Diagnostics.ActivitySource</item>
+    ///     <item>Request duration metrics</item>
+    ///     <item>Error counting</item>
+    /// </list>
+    /// <para>
+    /// Requires <c>services.AddLogging()</c> to be configured.
+    /// </para>
+    /// <code>
+    /// // Default options
+    /// services.AddDirectMediator()
+    ///         .AddDirectMediatorTelemetry();
+    ///
+    /// // Custom options
+    /// services.AddDirectMediator()
+    ///         .AddDirectMediatorTelemetry(options =>
+    ///         {
+    ///             options.ActivitySourceName = "MyApp";
+    ///             options.EnableTracing = true;
+    ///             options.EnableMetrics = true;
+    ///         });
+    /// </code>
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configureOptions">Optional action to configure telemetry options.</param>
+    public static IServiceCollection AddDirectMediatorTelemetry(
+        this IServiceCollection services,
+        Action<TelemetryBehaviorOptions>? configureOptions = null)
+    {
+        var options = new TelemetryBehaviorOptions();
+        configureOptions?.Invoke(options);
+
+        services.TryAddSingleton(options);
+        services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(TelemetryBehavior<,>));
+        return services;
+    }
 }

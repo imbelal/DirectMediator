@@ -286,6 +286,7 @@ DirectMediator ships six ready-to-use behaviors in the `DirectMediator.Abstracti
 | `ValidationBehavior<TRequest,TResponse>` | Runs all registered `IValidator<TRequest>` instances before the handler; throws `FluentValidation.ValidationException` if any rule fails; requests with no validators pass through unchanged |
 | `CorrelationIdBehavior<TRequest,TResponse>` | Assigns a unique correlation ID (GUID) to each request for distributed tracing; the ID is available via `ICorrelationContext` after the request completes |
 | `RetryBehavior<TRequest,TResponse>` | Automatically retries failed requests with configurable retry policies, exponential backoff, and jitter; supports custom exception filtering and callbacks |
+| `TelemetryBehavior<TRequest,TResponse>` | Instruments requests with OpenTelemetry tracing and metrics; tracks request duration, success/failure rates, and integrates with ActivitySource |
 
 Opt-in with the provided extension methods:
 
@@ -295,9 +296,10 @@ services.AddDirectMediator()
         .AddDirectMediatorLogging()              // ILogger-based request tracing
         .AddDirectMediatorPerformanceBehavior()  // warns on slow requests
         .AddDirectMediatorCaching()              // in-memory response caching (default TTL: 5 min)
-        .AddDirectMediatorValidation()          // FluentValidation request validation
+        .AddDirectMediatorValidation()           // FluentValidation request validation
         .AddDirectMediatorCorrelationId()        // correlation ID for distributed tracing
-        .AddDirectMediatorRetry();               // automatic retry for transient failures
+        .AddDirectMediatorRetry();              // automatic retry for transient failures
+        .AddDirectMediatorTelemetry();          // OpenTelemetry tracing and metrics
 ```
 
 #### RetryBehavior Configuration
@@ -337,6 +339,29 @@ services.AddDirectMediator()
 - `LinearBackoff` - Delay increases linearly (baseDelay × attemptNumber)
 - `ExponentialBackoff` - Delay grows exponentially (baseDelay × multiplier^attempt)
 - `ExponentialBackoffWithJitter` - Exponential backoff with random jitter to prevent thundering herd
+
+#### TelemetryBehavior Configuration
+
+The `TelemetryBehavior` provides OpenTelemetry integration for distributed tracing and metrics:
+
+```csharp
+services.AddDirectMediator()
+        .AddDirectMediatorTelemetry(options =>
+        {
+            options.ActivitySourceName = "MyApplication";  // Name for ActivitySource
+            options.EnableTracing = true;                   // Enable distributed tracing
+            options.EnableMetrics = true;                  // Enable metrics collection
+            
+            // Or provide a custom ActivitySource
+            options.ActivitySource = myActivitySource;
+        });
+```
+
+**Features:**
+- **Distributed Tracing**: Creates OpenTelemetry activities via `System.Diagnostics.ActivitySource`
+- **Request Metrics**: Tracks request count and duration
+- **Error Tracking**: Counts failed requests
+- **Custom Activity Names**: Uses request type name as the activity name
 
 ##### Using Correlation ID
 
@@ -610,9 +635,13 @@ DirectMediator/
 │   ├── ICacheableRequest.cs          # Opt-in marker for cacheable requests (CacheKey + CacheDuration)
 │   ├── CachingBehaviorOptions.cs     # Default TTL options for CachingBehavior
 │   ├── ValidationBehavior.cs         # Built-in: validates requests via IValidator<TRequest> (FluentValidation)
-│   ├── CorrelationIdBehavior.cs      # Built-in: assigns unique correlation ID for distributed tracing
+│   ├── CorrelationIdBehavior.cs       # Built-in: assigns unique correlation ID for distributed tracing
 │   ├── ICorrelationContext.cs        # Interface for accessing correlation ID
-│   ├── BehaviorServiceCollectionExtensions.cs  # AddDirectMediatorLogging() / AddDirectMediatorPerformanceBehavior() / AddDirectMediatorCaching() / AddDirectMediatorValidation() / AddDirectMediatorCorrelationId()
+│   ├── RetryBehavior.cs              # Built-in: automatic retry with exponential backoff
+│   ├── RetryBehaviorOptions.cs       # Configuration options for RetryBehavior
+│   ├── TelemetryBehavior.cs          # Built-in: OpenTelemetry tracing and metrics
+│   ├── TelemetryBehaviorOptions.cs   # Configuration options for TelemetryBehavior
+│   ├── BehaviorServiceCollectionExtensions.cs  # AddDirectMediator*() extension methods
 │   └── Unit.cs                       # Unit value type
 │
 ├── DirectMediator.Generator/           # Roslyn incremental source generator
@@ -626,23 +655,27 @@ DirectMediator/
 │
 ├── DirectMediator.Sample/              # Example console application
 │   ├── CreateOrderCommand.cs          # Command with FluentValidation
-│   ├── CreateOrderHandler.cs           # Command handler
-│   ├── CreateOrderCommandValidator.cs  # FluentValidation validator
-│   ├── GetOrderQuery.cs                # Simple query
-│   ├── GetOrderHandler.cs              # Query handler
-│   ├── GetProductQuery.cs              # Cacheable query (ICacheableRequest)
-│   ├── GetProductHandler.cs            # Cacheable query handler
-│   ├── Product.cs                      # Product model
-│   ├── OrderCreatedNotification.cs     # Notification
-│   ├── OrderCreatedHandler.cs          # Notification handler
-│   └── Program.cs                      # Demo application showcasing all features
+│   ├── CreateOrderHandler.cs         # Command handler
+│   ├── CreateOrderCommandValidator.cs # FluentValidation validator
+│   ├── GetOrderQuery.cs               # Simple query
+│   ├── GetOrderHandler.cs             # Query handler
+│   ├── GetProductQuery.cs             # Cacheable query (ICacheableRequest)
+│   ├── GetProductHandler.cs           # Cacheable query handler
+│   ├── Product.cs                     # Product model
+│   ├── OrderCreatedNotification.cs    # Notification
+│   ├── OrderCreatedHandler.cs         # Notification handler
+│   ├── RetryCommand.cs                # Command demonstrating retry behavior
+│   ├── RetryCommandHandler.cs         # Handler that simulates transient failures
+│   └── Program.cs                     # Demo application showcasing all features
 │
-└── DirectMediator.Tests/               # Unit tests (xUnit)
+└── DirectMediator.Tests/              # Unit tests (xUnit)
     ├── CommandDispatcherTests.cs
     ├── QueryDispatcherTests.cs
     ├── NotificationPublisherTests.cs
-    ├── PipelineBehaviorTests.cs        # Custom behaviors + built-in LoggingBehavior/PerformanceBehavior
-    ├── ValidationBehaviorTests.cs      # ValidationBehavior + AddDirectMediatorValidation()
+    ├── PipelineBehaviorTests.cs      # Custom behaviors + built-in LoggingBehavior/PerformanceBehavior
+    ├── ValidationBehaviorTests.cs    # ValidationBehavior + AddDirectMediatorValidation()
+    ├── RetryBehaviorTests.cs         # RetryBehavior + AddDirectMediatorRetry()
+    └── TelemetryBehaviorTests.cs     # TelemetryBehavior + AddDirectMediatorTelemetry()
     └── MediatorTests.cs
 ```
 

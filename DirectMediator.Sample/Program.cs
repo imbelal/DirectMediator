@@ -29,6 +29,12 @@ services.AddDirectMediator()
         options.Strategy = RetryStrategy.ExponentialBackoffWithJitter;
         options.JitterFactor = 0.3;
         options.ShouldRetryOnException = ex => ex is TransientFailureException;
+    })
+    .AddDirectMediatorTelemetry(options =>   // OpenTelemetry tracing and metrics
+    {
+        options.ActivitySourceName = "DirectMediator.Sample";
+        options.EnableTracing = true;
+        options.EnableMetrics = true;
     });
 
 // ✅ Register validators (required for ValidationBehavior)
