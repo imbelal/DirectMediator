@@ -37,7 +37,8 @@ Because the routing code is generated as plain C# `switch` expressions, the JIT 
 Add the **DirectMediator** NuGet package to your project:
 
 ```xml
-<PackageReference Include="DirectMediator" Version="1.0.1" />
+    <PackageReference Include="FluentValidation" Version="11.0.0.0" />
+    <PackageReference Include="DirectMediator" Version="1.0.2" />
 ```
 
 Or via the .NET CLI:
@@ -298,7 +299,7 @@ services.AddDirectMediator()
         .AddDirectMediatorCaching()              // in-memory response caching (default TTL: 5 min)
         .AddDirectMediatorValidation()           // FluentValidation request validation
         .AddDirectMediatorCorrelationId()        // correlation ID for distributed tracing
-        .AddDirectMediatorRetry();              // automatic retry for transient failures
+        .AddDirectMediatorRetry()               // automatic retry for transient failures
         .AddDirectMediatorTelemetry();          // OpenTelemetry tracing and metrics
 ```
 
