@@ -193,16 +193,32 @@ private static System.Func<TReq, CancellationToken, Task<TResp>> BuildPipeline<T
         foreach (var h in handlers)
             sb.AppendLine($"private readonly System.Func<{h.Request.ToDisplayString()}, CancellationToken, Task<Unit>> _{Camel(h.Handler.Name)}Pipeline;");
 
+        // Ensure unique behavior parameter names per request type to avoid collisions
+        var behaviorParamNames = new Dictionary<HandlerInfo, string>();
+        var usedBehaviorParamNames = new HashSet<string>(System.StringComparer.Ordinal);
+        foreach (var h in handlers)
+        {
+            var baseName = Camel(h.Request.Name) + "Behaviors";
+            var uniqueName = baseName;
+            var suffix = 1;
+            while (!usedBehaviorParamNames.Add(uniqueName))
+            {
+                uniqueName = baseName + suffix.ToString();
+                suffix++;
+            }
+            behaviorParamNames[h] = uniqueName;
+        }
+
         // Constructor: handlers + IEnumerable<IPipelineBehavior<TReq, TResp>> per handler
         var ctorParams = handlers
             .Select(h => $"{h.Handler.ToDisplayString()} {Camel(h.Handler.Name)}")
             .Concat(handlers.Select(h =>
-                $"IEnumerable<IPipelineBehavior<{h.Request.ToDisplayString()}, Unit>> {Camel(h.Request.Name)}Behaviors = null"));
+                $"IEnumerable<IPipelineBehavior<{h.Request.ToDisplayString()}, Unit>> {behaviorParamNames[h]} = null"));
         sb.AppendLine($"public CommandDispatcher({string.Join(", ", ctorParams)}) {{");
         foreach (var h in handlers)
         {
             sb.AppendLine($"_{Camel(h.Handler.Name)} = {Camel(h.Handler.Name)};");
-            sb.AppendLine($"_{Camel(h.Handler.Name)}Pipeline = BuildPipeline<{h.Request.ToDisplayString()}, Unit>({Camel(h.Handler.Name)}, {Camel(h.Request.Name)}Behaviors);");
+            sb.AppendLine($"_{Camel(h.Handler.Name)}Pipeline = BuildPipeline<{h.Request.ToDisplayString()}, Unit>({Camel(h.Handler.Name)}, {behaviorParamNames[h]});");
         }
         sb.AppendLine("}");
 
