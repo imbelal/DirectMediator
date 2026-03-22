@@ -15,7 +15,7 @@ A zero-reflection mediator for .NET powered by **C# source generators**. DirectM
 - 🔗 **Compile-time pipeline** — `IPipelineBehavior<TRequest, TResponse>` chains are built **once at construction** (no per-dispatch reflection or service location)
 - 📋 **Built-in behaviors** — opt-in `LoggingBehavior`, `PerformanceBehavior`, `CachingBehavior`, and `ValidationBehavior` ready to use
 - 💾 **Response caching** — implement `ICacheableRequest<TResponse>` on any request (command or query) to get automatic in-memory caching with a per-request configurable TTL
-- ✅ **Request validation** — integrate [FluentValidation](https://docs.fluentvalidation.net/) via `AddDirectMediatorValidation()`; validators run before the handler and throw `ValidationException` on failure
+- ✅ **Request validation** — integrate [FluentValidation](https://docs.fluentvalidation.net/) via `AddDirectMediatorValidation()`; validators run before the handler and throw `FluentValidation.ValidationException` on failure
 
 ---
 
