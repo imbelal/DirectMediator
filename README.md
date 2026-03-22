@@ -13,9 +13,10 @@ A zero-reflection mediator for .NET powered by **C# source generators**. DirectM
 - 🔀 **CQRS-ready** — first-class support for Commands, Queries, and Notifications
 - 🎯 **Unified interface** — single `IMediator` combining Send and Publish for easy injection and mocking
 - 🔗 **Compile-time pipeline** — `IPipelineBehavior<TRequest, TResponse>` chains are built **once at construction** (no per-dispatch reflection or service location)
-- 📋 **Built-in behaviors** — opt-in `LoggingBehavior`, `PerformanceBehavior`, `CachingBehavior`, and `ValidationBehavior` ready to use
+- 📋 **Built-in behaviors** — opt-in `LoggingBehavior`, `PerformanceBehavior`, `CachingBehavior`, `ValidationBehavior`, and `CorrelationIdBehavior` ready to use
 - 💾 **Response caching** — implement `ICacheableRequest<TResponse>` on any request (command or query) to get automatic in-memory caching with a per-request configurable TTL
 - ✅ **Request validation** — integrate [FluentValidation](https://docs.fluentvalidation.net/) via `AddDirectMediatorValidation()`; validators run before the handler and throw `FluentValidation.ValidationException` on failure
+- 🔍 **Correlation ID** — automatic correlation ID generation for distributed tracing via `AddDirectMediatorCorrelationId()` and `ICorrelationContext`
 
 ---
 
@@ -275,7 +276,7 @@ Multiple behaviors execute in registration order (first registered = outermost w
 
 #### Built-in behaviors
 
-DirectMediator ships four ready-to-use behaviors in the `DirectMediator.Abstractions` package:
+DirectMediator ships five ready-to-use behaviors in the `DirectMediator.Abstractions` package:
 
 | Behavior | Description |
 |----------|-------------|
@@ -283,6 +284,7 @@ DirectMediator ships four ready-to-use behaviors in the `DirectMediator.Abstract
 | `PerformanceBehavior<TRequest,TResponse>` | Logs a warning when a request exceeds a configurable threshold (default: 500 ms) |
 | `CachingBehavior<TRequest,TResponse>` | Caches responses in `IMemoryCache` for requests that implement `ICacheableRequest<TResponse>`; non-cacheable requests pass through unchanged |
 | `ValidationBehavior<TRequest,TResponse>` | Runs all registered `IValidator<TRequest>` instances before the handler; throws `FluentValidation.ValidationException` if any rule fails; requests with no validators pass through unchanged |
+| `CorrelationIdBehavior<TRequest,TResponse>` | Assigns a unique correlation ID (GUID) to each request for distributed tracing; the ID is available via `ICorrelationContext` after the request completes |
 
 Opt-in with the provided extension methods:
 
@@ -292,8 +294,23 @@ services.AddDirectMediator()
         .AddDirectMediatorLogging()              // ILogger-based request tracing
         .AddDirectMediatorPerformanceBehavior()  // warns on slow requests
         .AddDirectMediatorCaching()              // in-memory response caching (default TTL: 5 min)
-        .AddDirectMediatorValidation();          // FluentValidation request validation
+        .AddDirectMediatorValidation()          // FluentValidation request validation
+        .AddDirectMediatorCorrelationId();      // correlation ID for distributed tracing
 ```
+
+##### Using Correlation ID
+
+The `CorrelationIdBehavior` generates a unique correlation ID for each request and stores it in `ICorrelationContext`. Access it after sending a request:
+
+```csharp
+var mediator = services.BuildServiceProvider().GetRequiredService<IMediator>();
+var correlationContext = services.BuildServiceProvider().GetRequiredService<ICorrelationContext>();
+
+await mediator.Send(new CreateOrderCommand("Product"));
+Console.WriteLine($"Correlation ID: {correlationContext.CorrelationId}"); // e.g., "a1b2c3d4e5f6..."
+```
+
+The correlation ID persists on the `ICorrelationContext` singleton instance, allowing you to access it after the request completes.
 
 Override the global default TTL by passing a `defaultCacheDuration` to `AddDirectMediatorCaching()`:
 

@@ -15,13 +15,12 @@ services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Information));
 services.AddMemoryCache();
 
 // ✅ Auto-register all handlers + dispatchers + IMediator
-services.AddDirectMediator();
-
-// ✅ Opt-in to built-in behaviors
-services.AddDirectMediatorLogging();              // Logs every request via ILogger
-services.AddDirectMediatorPerformanceBehavior();  // Warns when a request exceeds threshold
-services.AddDirectMediatorCaching(defaultCacheDuration: TimeSpan.FromMinutes(5));  // Response caching
-services.AddDirectMediatorValidation();          // FluentValidation integration
+services.AddDirectMediator()
+    .AddDirectMediatorLogging()              // Logs every request via ILogger
+    .AddDirectMediatorPerformanceBehavior()  // Warns when a request exceeds threshold
+    .AddDirectMediatorCaching(defaultCacheDuration: TimeSpan.FromMinutes(5))  // Response caching
+    .AddDirectMediatorValidation()          // FluentValidation integration
+    .AddDirectMediatorCorrelationId();       // Correlation ID for distributed tracing
 
 // ✅ Register validators (required for ValidationBehavior)
 services.AddSingleton<IValidator<CreateOrderCommand>, CreateOrderCommandValidator>();
@@ -30,6 +29,7 @@ var provider = services.BuildServiceProvider();
 
 // --- Use the unified IMediator interface (recommended) ---
 var mediator = provider.GetRequiredService<IMediator>();
+var correlationContext = provider.GetRequiredService<ICorrelationContext>();
 
 // ============================================================
 // Example 1: Send a command (with validation)
@@ -40,6 +40,7 @@ try
 {
     // Valid command - should succeed
     await mediator.Send(new CreateOrderCommand("Tile"));
+    Console.WriteLine($"  Correlation ID (after first request): {correlationContext.CorrelationId}");
     
     // Invalid command - should throw ValidationException
     await mediator.Send(new CreateOrderCommand(""));

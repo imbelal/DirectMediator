@@ -99,4 +99,25 @@ public static class BehaviorServiceCollectionExtensions
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         return services;
     }
+
+    /// <summary>
+    /// Registers <see cref="CorrelationIdBehavior{TRequest,TResponse}"/> as an open-generic
+    /// <see cref="IPipelineBehavior{TRequest,TResponse}"/> (singleton) so it assigns and propagates
+    /// a correlation ID through the pipeline for distributed tracing.
+    /// </summary>
+    /// <remarks>
+    /// The behavior uses <see cref="ICorrelationContext"/> to store the correlation ID, which
+    /// flows through AsyncLocal for request-scoped storage. Correlation IDs can be propagated
+    /// from incoming requests via headers (e.g., "X-Correlation-Id") or generated automatically.
+    /// <code>
+    /// services.AddDirectMediator()
+    ///         .AddDirectMediatorCorrelationId();
+    /// </code>
+    /// </remarks>
+    public static IServiceCollection AddDirectMediatorCorrelationId(this IServiceCollection services)
+    {
+        services.TryAddSingleton<ICorrelationContext, CorrelationContext>();
+        services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(CorrelationIdBehavior<,>));
+        return services;
+    }
 }
