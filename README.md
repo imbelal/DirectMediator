@@ -372,7 +372,8 @@ public class CreateOrderCommandValidator : AbstractValidator<CreateOrderCommand>
 ```csharp
 using FluentValidation;
 
-// Register individual validators (singleton-safe because validators are stateless)
+// Register individual validators as singletons — only safe when they are
+// stateless and do not depend on scoped services (see thread-safety note below)
 services.AddSingleton<IValidator<CreateOrderCommand>, CreateOrderCommandValidator>();
 
 // Enable the validation behavior
@@ -380,7 +381,7 @@ services.AddDirectMediator()
         .AddDirectMediatorValidation();
 ```
 
-> **Thread-safety note:** Because dispatchers are singletons and the pipeline is built once at construction, `ValidationBehavior` is registered as a **singleton**. Any `IValidator<T>` instances it captures must therefore be thread-safe. Standard FluentValidation `AbstractValidator<T>` subclasses are stateless and safe to register as singletons.
+> **Thread-safety note:** Because dispatchers are singletons and the pipeline is built once at construction, `ValidationBehavior` is registered as a **singleton** and holds onto its `IValidator<T>` instances for the lifetime of the application. Validators must therefore be **thread-safe** and **must not depend on scoped services** (e.g. `DbContext`). Only register a validator as a singleton if it is stateless or all of its dependencies are also singleton-safe. If a validator needs scoped services, do not use singleton registration — consider a factory/transient approach or restructure to keep the validator stateless.
 
 **Handle validation failures** in your application code:
 
