@@ -41,6 +41,9 @@ public class NotificationPublisherTests
             new TestNotificationHandlerA(() => calledCount++));
         services.AddTransient<TestNotificationHandlerB>(sp =>
             new TestNotificationHandlerB(() => calledCount++));
+        // PipelineNotificationHandler is also discovered by the generator (defined in PipelineBehaviorTests.cs)
+        services.AddTransient<PipelineNotificationHandler>(sp =>
+            new PipelineNotificationHandler(() => { }));
         services.AddSingleton<NotificationPublisher>();
 
         var provider = services.BuildServiceProvider();
