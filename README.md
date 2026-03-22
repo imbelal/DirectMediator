@@ -341,13 +341,13 @@ _cache.Remove($"product:{productId}");
 **Installation** — add the FluentValidation package to your project:
 
 ```xml
-<PackageReference Include="FluentValidation" Version="11.*" />
+<PackageReference Include="FluentValidation" Version="11.11.0" />
 ```
 
 Or via the .NET CLI:
 
 ```bash
-dotnet add package FluentValidation
+dotnet add package FluentValidation --version 11.11.0
 ```
 
 **Define a validator** for a request:
