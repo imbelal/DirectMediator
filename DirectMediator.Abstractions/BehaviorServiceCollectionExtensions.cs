@@ -120,4 +120,51 @@ public static class BehaviorServiceCollectionExtensions
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(CorrelationIdBehavior<,>));
         return services;
     }
+
+    /// <summary>
+    /// Registers <see cref="RetryBehavior{TRequest,TResponse}"/> as an open-generic
+    /// <see cref="IPipelineBehavior{TRequest,TResponse}"/> (singleton) so it automatically
+    /// retries failed requests based on configurable policies.
+    /// </summary>
+    /// <remarks>
+    /// The retry behavior wraps request execution and catches transient failures, automatically
+    /// retrying based on user-configured policies. It supports multiple retry strategies:
+    /// <list type="bullet">
+    ///     <item>FixedDelay - same delay between retries</item>
+    ///     <item>LinearBackoff - delay increases linearly</item>
+    ///     <item>ExponentialBackoff - delay doubles each retry</item>
+    ///     <item>ExponentialBackoffWithJitter - recommended for production</item>
+    /// </list>
+    /// <para>
+    /// Requires <c>services.AddLogging()</c> to be configured.
+    /// </para>
+    /// <code>
+    /// // Default options (3 retries, exponential backoff with jitter)
+    /// services.AddDirectMediator()
+    ///         .AddDirectMediatorRetry();
+    ///
+    /// // Custom options
+    /// services.AddDirectMediator()
+    ///         .AddDirectMediatorRetry(options =>
+    ///         {
+    ///             options.MaxRetryCount = 5;
+    ///             options.BaseDelay = TimeSpan.FromSeconds(2);
+    ///             options.Strategy = RetryStrategy.ExponentialBackoffWithJitter;
+    ///             options.ShouldRetryOnException = ex => ex is HttpRequestException || ex is TimeoutException;
+    ///         });
+    /// </code>
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configureOptions">Optional action to configure retry options.</param>
+    public static IServiceCollection AddDirectMediatorRetry(
+        this IServiceCollection services,
+        Action<RetryBehaviorOptions>? configureOptions = null)
+    {
+        var options = new RetryBehaviorOptions();
+        configureOptions?.Invoke(options);
+
+        services.TryAddSingleton(options);
+        services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(RetryBehavior<,>));
+        return services;
+    }
 }

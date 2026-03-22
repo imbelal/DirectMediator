@@ -276,7 +276,7 @@ Multiple behaviors execute in registration order (first registered = outermost w
 
 #### Built-in behaviors
 
-DirectMediator ships five ready-to-use behaviors in the `DirectMediator.Abstractions` package:
+DirectMediator ships six ready-to-use behaviors in the `DirectMediator.Abstractions` package:
 
 | Behavior | Description |
 |----------|-------------|
@@ -285,6 +285,7 @@ DirectMediator ships five ready-to-use behaviors in the `DirectMediator.Abstract
 | `CachingBehavior<TRequest,TResponse>` | Caches responses in `IMemoryCache` for requests that implement `ICacheableRequest<TResponse>`; non-cacheable requests pass through unchanged |
 | `ValidationBehavior<TRequest,TResponse>` | Runs all registered `IValidator<TRequest>` instances before the handler; throws `FluentValidation.ValidationException` if any rule fails; requests with no validators pass through unchanged |
 | `CorrelationIdBehavior<TRequest,TResponse>` | Assigns a unique correlation ID (GUID) to each request for distributed tracing; the ID is available via `ICorrelationContext` after the request completes |
+| `RetryBehavior<TRequest,TResponse>` | Automatically retries failed requests with configurable retry policies, exponential backoff, and jitter; supports custom exception filtering and callbacks |
 
 Opt-in with the provided extension methods:
 
@@ -295,8 +296,47 @@ services.AddDirectMediator()
         .AddDirectMediatorPerformanceBehavior()  // warns on slow requests
         .AddDirectMediatorCaching()              // in-memory response caching (default TTL: 5 min)
         .AddDirectMediatorValidation()          // FluentValidation request validation
-        .AddDirectMediatorCorrelationId();      // correlation ID for distributed tracing
+        .AddDirectMediatorCorrelationId()        // correlation ID for distributed tracing
+        .AddDirectMediatorRetry();               // automatic retry for transient failures
 ```
+
+#### RetryBehavior Configuration
+
+The `RetryBehavior` provides automatic retry functionality for transient failures. Configure it with the `AddDirectMediatorRetry` extension:
+
+```csharp
+services.AddDirectMediator()
+        .AddDirectMediatorRetry(options =>
+        {
+            options.MaxRetryCount = 3;                    // Number of retry attempts (default: 3)
+            options.BaseDelay = TimeSpan.FromSeconds(1); // Initial delay between retries
+            options.MaxDelay = TimeSpan.FromSeconds(30); // Maximum delay cap
+            options.BackoffMultiplier = 2.0;             // Exponential multiplier
+            options.JitterFactor = 0.3;                  // Random jitter factor (0-1)
+            options.Strategy = RetryStrategy.ExponentialBackoffWithJitter;
+            
+            // Only retry specific exception types
+            options.ShouldRetryOnException = ex => ex is TransientException || ex is TimeoutException;
+            
+            // Callback invoked on each retry
+            options.OnRetry = (requestType, attempt, delay, exception) =>
+            {
+                Console.WriteLine($"Retrying {requestType.Name} (attempt {attempt}) after {delay}");
+            };
+            
+            // Callback invoked when retries are exhausted
+            options.OnRetryExhausted = (requestType, attempts, exception) =>
+            {
+                Console.WriteLine($"Retry exhausted for {requestType.Name} after {attempts} attempts");
+            };
+        });
+```
+
+**Retry Strategies:**
+- `FixedDelay` - Constant delay between retries
+- `LinearBackoff` - Delay increases linearly (baseDelay × attemptNumber)
+- `ExponentialBackoff` - Delay grows exponentially (baseDelay × multiplier^attempt)
+- `ExponentialBackoffWithJitter` - Exponential backoff with random jitter to prevent thundering herd
 
 ##### Using Correlation ID
 

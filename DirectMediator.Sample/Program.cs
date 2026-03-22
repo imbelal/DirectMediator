@@ -3,6 +3,7 @@ using DirectMediator.Generated;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DirectMediator.Sample;
 
 Console.WriteLine("=== DirectMediator Sample Application ===\n");
 
@@ -20,7 +21,15 @@ services.AddDirectMediator()
     .AddDirectMediatorPerformanceBehavior()  // Warns when a request exceeds threshold
     .AddDirectMediatorCaching(defaultCacheDuration: TimeSpan.FromMinutes(5))  // Response caching
     .AddDirectMediatorValidation()          // FluentValidation integration
-    .AddDirectMediatorCorrelationId();       // Correlation ID for distributed tracing
+    .AddDirectMediatorCorrelationId()        // Correlation ID for distributed tracing
+    .AddDirectMediatorRetry(options =>       // Automatic retry for transient failures
+    {
+        options.MaxRetryCount = 3;
+        options.BaseDelay = TimeSpan.FromMilliseconds(50);
+        options.Strategy = RetryStrategy.ExponentialBackoffWithJitter;
+        options.JitterFactor = 0.3;
+        options.ShouldRetryOnException = ex => ex is TransientFailureException;
+    });
 
 // ✅ Register validators (required for ValidationBehavior)
 services.AddSingleton<IValidator<CreateOrderCommand>, CreateOrderCommandValidator>();
@@ -100,5 +109,22 @@ await commandDispatcher.Send(new CreateOrderCommand("Widget"), default);
 var result = await queryDispatcher.Query(new GetOrderQuery(456), default);
 Console.WriteLine($"QueryDispatcher result: {result}");
 await publisher.Publish(new OrderCreatedNotification("Widget"), default);
+
+// ============================================================
+// Example 6: RetryBehavior - Automatic retry for transient failures
+// ============================================================
+Console.WriteLine("\n--- Example 6: RetryBehavior ---");
+
+try
+{
+    // This command will fail 2 times before succeeding
+    // The RetryBehavior will automatically retry with exponential backoff
+    var retryResult = await mediator.Send(new RetryCommand("Test Product", FailCount: 2));
+    Console.WriteLine($"  Retry command succeeded: {retryResult}");
+}
+catch (TransientFailureException ex)
+{
+    Console.WriteLine($"  Retry command failed after all retries: {ex.Message}");
+}
 
 Console.WriteLine("\n=== Sample completed successfully! ===");
