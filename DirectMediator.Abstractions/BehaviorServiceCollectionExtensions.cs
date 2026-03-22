@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DirectMediator;
 
@@ -33,6 +34,38 @@ public static class BehaviorServiceCollectionExtensions
     public static IServiceCollection AddDirectMediatorPerformanceBehavior(this IServiceCollection services)
     {
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>));
+        return services;
+    }
+
+    /// <summary>
+    /// Registers <see cref="CachingBehavior{TRequest,TResponse}"/> as an open-generic
+    /// <see cref="IPipelineBehavior{TRequest,TResponse}"/> (singleton) so it automatically
+    /// caches responses for any request implementing <see cref="ICacheableRequest{TResponse}"/>.
+    /// Non-cacheable requests pass through unchanged.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="defaultCacheDuration">
+    /// Default TTL used when a request's <see cref="ICacheableRequest{TResponse}.CacheDuration"/>
+    /// returns <c>null</c>. Omit to use the default of 5 minutes.
+    /// </param>
+    /// <remarks>
+    /// Requires <see cref="Microsoft.Extensions.Caching.Memory.IMemoryCache"/> to be registered.
+    /// Call <c>services.AddMemoryCache()</c> before or after this method.
+    /// <code>
+    /// services.AddMemoryCache();
+    /// services.AddDirectMediator()
+    ///         .AddDirectMediatorCaching();
+    /// </code>
+    /// </remarks>
+    public static IServiceCollection AddDirectMediatorCaching(
+        this IServiceCollection services,
+        TimeSpan? defaultCacheDuration = null)
+    {
+        services.TryAddSingleton(sp => new CachingBehaviorOptions
+        {
+            DefaultDuration = defaultCacheDuration ?? TimeSpan.FromMinutes(5)
+        });
+        services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(CachingBehavior<,>));
         return services;
     }
 }

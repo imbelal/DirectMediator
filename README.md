@@ -273,19 +273,22 @@ Multiple behaviors execute in registration order (first registered = outermost w
 
 #### Built-in behaviors
 
-DirectMediator ships two ready-to-use behaviors in the `DirectMediator.Abstractions` package:
+DirectMediator ships three ready-to-use behaviors in the `DirectMediator.Abstractions` package:
 
 | Behavior | Description |
 |----------|-------------|
 | `LoggingBehavior<TRequest,TResponse>` | Logs `Handling` / `Handled` messages and errors via `ILogger<TRequest>` |
 | `PerformanceBehavior<TRequest,TResponse>` | Logs a warning when a request exceeds a configurable threshold (default: 500 ms) |
+| `CachingBehavior<TRequest,TResponse>` | Caches responses in `IMemoryCache` for requests that implement `ICacheableRequest<TResponse>`; non-cacheable requests pass through unchanged |
 
-Opt-in with the provided extension methods (requires `services.AddLogging()` to be configured):
+Opt-in with the provided extension methods:
 
 ```csharp
+services.AddMemoryCache();                   // required if using AddDirectMediatorCaching()
 services.AddDirectMediator()
         .AddDirectMediatorLogging()              // ILogger-based request tracing
-        .AddDirectMediatorPerformanceBehavior(); // warns on slow requests
+        .AddDirectMediatorPerformanceBehavior()  // warns on slow requests
+        .AddDirectMediatorCaching();             // in-memory response caching (default TTL: 5 min)
 ```
 
 Adjust the slow-request threshold per-instance via the constructor:
@@ -296,6 +299,27 @@ services.AddSingleton<IPipelineBehavior<CreateOrderCommand, Unit>>(sp =>
     new PerformanceBehavior<CreateOrderCommand, Unit>(
         sp.GetRequiredService<ILogger<CreateOrderCommand>>(),
         slowThresholdMs: 200));
+```
+
+#### Opting in to caching per request
+
+Implement `ICacheableRequest<TResponse>` on any query to have its response cached automatically:
+
+```csharp
+public record GetProductQuery(int ProductId) : ICacheableRequest<Product>
+{
+    // Unique key used to store/retrieve the cached value
+    public string CacheKey => $"product:{ProductId}";
+
+    // Per-request TTL; null = use the default configured in AddDirectMediatorCaching()
+    public TimeSpan? CacheDuration => TimeSpan.FromMinutes(10);
+}
+```
+
+To invalidate a cache entry, call `IMemoryCache.Remove(key)` with the same key used by the request.
+
+```csharp
+_cache.Remove($"product:{productId}");
 ```
 
 ---
@@ -441,7 +465,10 @@ DirectMediator/
 │   ├── RequestHandlerDelegate.cs     # Delegate used in pipeline behaviors
 │   ├── LoggingBehavior.cs            # Built-in: logs Handling/Handled/Error via ILogger
 │   ├── PerformanceBehavior.cs        # Built-in: warns when request exceeds configurable threshold
-│   ├── BehaviorServiceCollectionExtensions.cs  # AddDirectMediatorLogging() / AddDirectMediatorPerformanceBehavior()
+│   ├── CachingBehavior.cs            # Built-in: caches responses via IMemoryCache for ICacheableRequest
+│   ├── ICacheableRequest.cs          # Opt-in marker for cacheable requests (CacheKey + CacheDuration)
+│   ├── CachingBehaviorOptions.cs     # Default TTL options for CachingBehavior
+│   ├── BehaviorServiceCollectionExtensions.cs  # AddDirectMediatorLogging() / AddDirectMediatorPerformanceBehavior() / AddDirectMediatorCaching()
 │   └── Unit.cs                       # Unit value type
 │
 ├── DirectMediator.Generator/           # Roslyn incremental source generator
