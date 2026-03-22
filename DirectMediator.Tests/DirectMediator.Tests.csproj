@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
@@ -23,9 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DirectMediator\DirectMediator.csproj" />
     <ProjectReference Include="..\DirectMediator.Abstractions\DirectMediator.Abstractions.csproj" />
-    <ProjectReference Include="..\DirectMediator.Generator\DirectMediator.Generator.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DirectMediator.Generator\DirectMediator.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>
