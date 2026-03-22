@@ -13,8 +13,9 @@ A zero-reflection mediator for .NET powered by **C# source generators**. DirectM
 - 🔀 **CQRS-ready** — first-class support for Commands, Queries, and Notifications
 - 🎯 **Unified interface** — single `IMediator` combining Send and Publish for easy injection and mocking
 - 🔗 **Compile-time pipeline** — `IPipelineBehavior<TRequest, TResponse>` chains are built **once at construction** (no per-dispatch reflection or service location)
-- 📋 **Built-in behaviors** — opt-in `LoggingBehavior`, `PerformanceBehavior`, and `CachingBehavior` ready to use
+- 📋 **Built-in behaviors** — opt-in `LoggingBehavior`, `PerformanceBehavior`, `CachingBehavior`, and `ValidationBehavior` ready to use
 - 💾 **Response caching** — implement `ICacheableRequest<TResponse>` on any request (command or query) to get automatic in-memory caching with a per-request configurable TTL
+- ✅ **Request validation** — integrate [FluentValidation](https://docs.fluentvalidation.net/) via `AddDirectMediatorValidation()`; validators run before the handler and throw `FluentValidation.ValidationException` on failure
 
 ---
 
@@ -274,13 +275,14 @@ Multiple behaviors execute in registration order (first registered = outermost w
 
 #### Built-in behaviors
 
-DirectMediator ships three ready-to-use behaviors in the `DirectMediator.Abstractions` package:
+DirectMediator ships four ready-to-use behaviors in the `DirectMediator.Abstractions` package:
 
 | Behavior | Description |
 |----------|-------------|
 | `LoggingBehavior<TRequest,TResponse>` | Logs `Handling` / `Handled` messages and errors via `ILogger<TRequest>` |
 | `PerformanceBehavior<TRequest,TResponse>` | Logs a warning when a request exceeds a configurable threshold (default: 500 ms) |
 | `CachingBehavior<TRequest,TResponse>` | Caches responses in `IMemoryCache` for requests that implement `ICacheableRequest<TResponse>`; non-cacheable requests pass through unchanged |
+| `ValidationBehavior<TRequest,TResponse>` | Runs all registered `IValidator<TRequest>` instances before the handler; throws `FluentValidation.ValidationException` if any rule fails; requests with no validators pass through unchanged |
 
 Opt-in with the provided extension methods:
 
@@ -289,7 +291,8 @@ services.AddMemoryCache();                   // required if using AddDirectMedia
 services.AddDirectMediator()
         .AddDirectMediatorLogging()              // ILogger-based request tracing
         .AddDirectMediatorPerformanceBehavior()  // warns on slow requests
-        .AddDirectMediatorCaching();             // in-memory response caching (default TTL: 5 min)
+        .AddDirectMediatorCaching()              // in-memory response caching (default TTL: 5 min)
+        .AddDirectMediatorValidation();          // FluentValidation request validation
 ```
 
 Override the global default TTL by passing a `defaultCacheDuration` to `AddDirectMediatorCaching()`:
@@ -329,6 +332,78 @@ To invalidate a cache entry, call `IMemoryCache.Remove(key)` with the same key u
 
 ```csharp
 _cache.Remove($"product:{productId}");
+```
+
+#### Request Validation with FluentValidation
+
+`ValidationBehavior<TRequest, TResponse>` integrates [FluentValidation](https://docs.fluentvalidation.net/) into the DirectMediator pipeline. It runs every registered `IValidator<TRequest>` before the handler is invoked. If any rule fails a `FluentValidation.ValidationException` is thrown and the handler is never called. Requests that have no registered validators pass through unchanged.
+
+**Installation** — add the FluentValidation package to your project:
+
+```xml
+<PackageReference Include="FluentValidation" Version="11.11.0" />
+```
+
+Or via the .NET CLI:
+
+```bash
+dotnet add package FluentValidation --version 11.11.0
+```
+
+**Define a validator** for a request:
+
+```csharp
+using FluentValidation;
+
+public record CreateOrderCommand(string Product) : ICommand;
+
+public class CreateOrderCommandValidator : AbstractValidator<CreateOrderCommand>
+{
+    public CreateOrderCommandValidator()
+    {
+        RuleFor(x => x.Product).NotEmpty().WithMessage("Product name is required.");
+        RuleFor(x => x.Product).MaximumLength(100).WithMessage("Product name must not exceed 100 characters.");
+    }
+}
+```
+
+**Register** the validator and enable the behavior:
+
+```csharp
+using FluentValidation;
+
+// Register individual validators as singletons — only safe when they are
+// stateless and do not depend on scoped services (see thread-safety note below)
+services.AddSingleton<IValidator<CreateOrderCommand>, CreateOrderCommandValidator>();
+
+// Enable the validation behavior
+services.AddDirectMediator()
+        .AddDirectMediatorValidation();
+```
+
+> **Thread-safety note:** Because dispatchers are singletons and the pipeline is built once at construction, `ValidationBehavior` is registered as a **singleton** and holds onto its `IValidator<T>` instances for the lifetime of the application. Validators must therefore be **thread-safe** and **must not depend on scoped services** (e.g. `DbContext`). Only register a validator as a singleton if it is stateless or all of its dependencies are also singleton-safe. If a validator needs scoped services, do not use singleton registration — consider a factory/transient approach or restructure to keep the validator stateless.
+
+**Handle validation failures** in your application code:
+
+```csharp
+using FluentValidation;
+
+try
+{
+    await mediator.Send(new CreateOrderCommand(""));
+}
+catch (ValidationException ex)
+{
+    foreach (var failure in ex.Errors)
+        Console.WriteLine($"{failure.PropertyName}: {failure.ErrorMessage}");
+}
+```
+
+**Multiple validators** for the same request type are all executed; failures from every validator are aggregated into a single `ValidationException`:
+
+```csharp
+services.AddSingleton<IValidator<CreateOrderCommand>, CreateOrderCommandValidator>();
+services.AddSingleton<IValidator<CreateOrderCommand>, AnotherCreateOrderCommandValidator>();
 ```
 
 ---
@@ -477,7 +552,8 @@ DirectMediator/
 │   ├── CachingBehavior.cs            # Built-in: caches responses via IMemoryCache for ICacheableRequest
 │   ├── ICacheableRequest.cs          # Opt-in marker for cacheable requests (CacheKey + CacheDuration)
 │   ├── CachingBehaviorOptions.cs     # Default TTL options for CachingBehavior
-│   ├── BehaviorServiceCollectionExtensions.cs  # AddDirectMediatorLogging() / AddDirectMediatorPerformanceBehavior() / AddDirectMediatorCaching()
+│   ├── ValidationBehavior.cs         # Built-in: validates requests via IValidator<TRequest> (FluentValidation)
+│   ├── BehaviorServiceCollectionExtensions.cs  # AddDirectMediatorLogging() / AddDirectMediatorPerformanceBehavior() / AddDirectMediatorCaching() / AddDirectMediatorValidation()
 │   └── Unit.cs                       # Unit value type
 │
 ├── DirectMediator.Generator/           # Roslyn incremental source generator
@@ -500,6 +576,7 @@ DirectMediator/
     ├── QueryDispatcherTests.cs
     ├── NotificationPublisherTests.cs
     ├── PipelineBehaviorTests.cs        # Custom behaviors + built-in LoggingBehavior/PerformanceBehavior
+    ├── ValidationBehaviorTests.cs      # ValidationBehavior + AddDirectMediatorValidation()
     └── MediatorTests.cs
 ```
 
