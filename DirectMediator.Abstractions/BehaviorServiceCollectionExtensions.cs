@@ -80,6 +80,14 @@ public static class BehaviorServiceCollectionExtensions
     /// registered for a request type they are all executed and any failures cause a
     /// <see cref="FluentValidation.ValidationException"/> to be thrown before the handler is
     /// invoked. Requests with no registered validators pass through unchanged.
+    /// <para>
+    /// Because the validation behavior is registered as a singleton in the DirectMediator
+    /// pipeline, any <see cref="IValidator{T}"/> instances it uses are effectively long-lived
+    /// and may be invoked concurrently from multiple threads. Validators must therefore be
+    /// thread-safe and must not depend on scoped services. Register validators with a
+    /// singleton-safe lifetime (for example, as singletons or as stateless transients that
+    /// do not capture scoped dependencies).
+    /// </para>
     /// <code>
     /// services.AddSingleton&lt;IValidator&lt;MyCommand&gt;, MyCommandValidator&gt;();
     /// services.AddDirectMediator()
