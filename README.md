@@ -295,6 +295,7 @@ services.AddDirectMediator()
 Override the global default TTL by passing a `defaultCacheDuration` to `AddDirectMediatorCaching()`:
 
 ```csharp
+services.AddMemoryCache();                   // required if using AddDirectMediatorCaching()
 services.AddDirectMediator()
         .AddDirectMediatorCaching(defaultCacheDuration: TimeSpan.FromMinutes(10));
 ```
