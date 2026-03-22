@@ -129,6 +129,7 @@ public class MediatorGenerator : IIncrementalGenerator
 
         sb.AppendLine(@"
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -139,10 +140,35 @@ namespace DirectMediator.Generated
         GenerateCommandDispatcher(sb, commands);
         GenerateQueryDispatcher(sb, queries);
         GenerateNotificationPublisher(sb, notifications);
+        GenerateMediator(sb, commands, queries, notifications);
         GenerateServiceCollectionExtension(sb, commands.Concat(queries).ToList(), notifications);
 
         sb.AppendLine("}"); // namespace
         return sb.ToString();
+    }
+
+    // -------------------------------
+    // PIPELINE HELPER (shared snippet)
+    // -------------------------------
+    private void AppendRunPipeline(StringBuilder sb)
+    {
+        sb.AppendLine(@"
+// Builds and executes the behavior pipeline for a single request.
+// Behaviors are resolved from DI and reversed so the first-registered behavior becomes the
+// outermost wrapper (i.e. it runs first before the request, and last after the response).
+private Task<TResponse> RunPipeline<TRequest, TResponse>(TRequest request, IRequestHandler<TRequest, TResponse> handler, CancellationToken ct)
+    where TRequest : IRequest<TResponse>
+{
+    var behaviors = _serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>().Reverse().ToList();
+    RequestHandlerDelegate<TResponse> next = () => handler.Handle(request, ct);
+    foreach (var behavior in behaviors)
+    {
+        var b = behavior;
+        var prev = next;
+        next = () => b.Handle(request, ct, prev);
+    }
+    return next();
+}");
     }
 
     // -------------------------------
@@ -155,12 +181,14 @@ namespace DirectMediator.Generated
 
         foreach (var h in handlers)
             sb.AppendLine($"private readonly {h.Handler.ToDisplayString()} _{Camel(h.Handler.Name)};");
+        sb.AppendLine("private readonly IServiceProvider _serviceProvider;");
 
-        sb.AppendLine("public CommandDispatcher(" +
-            string.Join(", ", handlers.Select(h => $"{h.Handler.ToDisplayString()} {Camel(h.Handler.Name)}")) +
-            ") {");
+        var ctorParams = handlers.Select(h => $"{h.Handler.ToDisplayString()} {Camel(h.Handler.Name)}")
+            .Append("IServiceProvider serviceProvider");
+        sb.AppendLine($"public CommandDispatcher({string.Join(", ", ctorParams)}) {{");
         foreach (var h in handlers)
             sb.AppendLine($"_{Camel(h.Handler.Name)} = {Camel(h.Handler.Name)};");
+        sb.AppendLine("_serviceProvider = serviceProvider;");
         sb.AppendLine("}");
 
         sb.AppendLine(@"
@@ -169,9 +197,11 @@ public Task Send<TCommand>(TCommand command, CancellationToken ct = default) whe
     return command switch
     {");
         foreach (var h in handlers)
-            sb.AppendLine($"{h.Request.ToDisplayString()} c => _{Camel(h.Handler.Name)}.Handle(c, ct),");
+            sb.AppendLine($"{h.Request.ToDisplayString()} c => RunPipeline<{h.Request.ToDisplayString()}, Unit>(c, _{Camel(h.Handler.Name)}, ct),");
         sb.AppendLine(@"_ => throw new InvalidOperationException($""No handler found for command type '{(command is null ? typeof(TCommand) : command.GetType()).FullName}'"")};");
         sb.AppendLine("}");
+
+        AppendRunPipeline(sb);
         sb.AppendLine("}");
     }
 
@@ -185,19 +215,22 @@ public Task Send<TCommand>(TCommand command, CancellationToken ct = default) whe
 
         foreach (var h in handlers)
             sb.AppendLine($"private readonly {h.Handler.ToDisplayString()} _{Camel(h.Handler.Name)};");
+        sb.AppendLine("private readonly IServiceProvider _serviceProvider;");
 
-        sb.AppendLine("public QueryDispatcher(" +
-            string.Join(", ", handlers.Select(h => $"{h.Handler.ToDisplayString()} {Camel(h.Handler.Name)}")) +
-            ") {");
+        var ctorParams = handlers.Select(h => $"{h.Handler.ToDisplayString()} {Camel(h.Handler.Name)}")
+            .Append("IServiceProvider serviceProvider");
+        sb.AppendLine($"public QueryDispatcher({string.Join(", ", ctorParams)}) {{");
         foreach (var h in handlers)
             sb.AppendLine($"_{Camel(h.Handler.Name)} = {Camel(h.Handler.Name)};");
+        sb.AppendLine("_serviceProvider = serviceProvider;");
         sb.AppendLine("}");
 
         foreach (var h in handlers)
             sb.AppendLine($@"
 public Task<{h.Response.ToDisplayString()}> Query({h.Request.ToDisplayString()} query, CancellationToken ct = default)
-    => _{Camel(h.Handler.Name)}.Handle(query, ct);");
+    => RunPipeline<{h.Request.ToDisplayString()}, {h.Response.ToDisplayString()}>(query, _{Camel(h.Handler.Name)}, ct);");
 
+        AppendRunPipeline(sb);
         sb.AppendLine("}");
     }
 
@@ -238,6 +271,65 @@ public async Task Publish<TNotification>(TNotification notification, Cancellatio
     }
 
     // -------------------------------
+    // UNIFIED MEDIATOR
+    // -------------------------------
+    private void GenerateMediator(StringBuilder sb, List<HandlerInfo> commands, List<HandlerInfo> queries, List<HandlerInfo> notifications)
+    {
+        var allRequestHandlers = commands.Concat(queries).ToList();
+
+        sb.AppendLine("public sealed class Mediator : IMediator");
+        sb.AppendLine("{");
+
+        // Fields
+        foreach (var h in allRequestHandlers)
+            sb.AppendLine($"private readonly {h.Handler.ToDisplayString()} _{Camel(h.Handler.Name)};");
+        foreach (var h in notifications)
+            sb.AppendLine($"private readonly {h.Handler.ToDisplayString()} _{Camel(h.Handler.Name)};");
+        sb.AppendLine("private readonly IServiceProvider _serviceProvider;");
+
+        // Constructor
+        var ctorParams = allRequestHandlers
+            .Concat(notifications)
+            .Select(h => $"{h.Handler.ToDisplayString()} {Camel(h.Handler.Name)}")
+            .Append("IServiceProvider serviceProvider");
+        sb.AppendLine($"public Mediator({string.Join(", ", ctorParams)}) {{");
+        foreach (var h in allRequestHandlers.Concat(notifications))
+            sb.AppendLine($"_{Camel(h.Handler.Name)} = {Camel(h.Handler.Name)};");
+        sb.AppendLine("_serviceProvider = serviceProvider;");
+        sb.AppendLine("}");
+
+        // IMediator.Send<TResponse> — handles both commands and queries
+        sb.AppendLine(@"
+public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken ct = default)
+{
+    return request switch
+    {");
+        foreach (var h in allRequestHandlers)
+            sb.AppendLine($"{h.Request.ToDisplayString()} r => (Task<TResponse>)(object)RunPipeline<{h.Request.ToDisplayString()}, {h.Response.ToDisplayString()}>(r, _{Camel(h.Handler.Name)}, ct),");
+        sb.AppendLine(@"_ => throw new InvalidOperationException($""No handler found for request type '{request?.GetType().FullName ?? typeof(IRequest<TResponse>).FullName}'"")};");
+        sb.AppendLine("}");
+
+        // INotificationPublisher.Publish
+        sb.AppendLine(@"
+public async Task Publish<TNotification>(TNotification notification, CancellationToken ct = default) where TNotification : INotification
+{
+    switch (notification)
+    {");
+        foreach (var group in notifications.GroupBy(h => h.Request.ToDisplayString()))
+        {
+            sb.AppendLine($"case {group.Key} n:");
+            foreach (var h in group)
+                sb.AppendLine($"    await _{Camel(h.Handler.Name)}.Handle(n, ct);");
+            sb.AppendLine("    break;");
+        }
+        sb.AppendLine(@"default: throw new InvalidOperationException($""No handlers found for notification type '{notification?.GetType().FullName ?? typeof(TNotification).FullName ?? typeof(TNotification).Name}'""); }");
+        sb.AppendLine("}");
+
+        AppendRunPipeline(sb);
+        sb.AppendLine("}");
+    }
+
+    // -------------------------------
     // EXTENSIONS
     // -------------------------------
     private void GenerateServiceCollectionExtension(StringBuilder sb, 
@@ -250,13 +342,18 @@ public async Task Publish<TNotification>(TNotification notification, Cancellatio
             public static IServiceCollection AddDirectMediator(this IServiceCollection services)
             {");
 
-        foreach (var h in requestHandlers.Concat(notificationHandlers))
+        // De-duplicate handlers that appear in both request and notification lists
+        var allHandlers = requestHandlers.Concat(notificationHandlers)
+            .GroupBy(h => h.Handler.ToDisplayString())
+            .Select(g => g.First());
+        foreach (var h in allHandlers)
             sb.AppendLine($"            services.AddTransient<{h.Handler.ToDisplayString()}>();");
 
         sb.AppendLine(@"
                 services.AddSingleton<CommandDispatcher>();
                 services.AddSingleton<QueryDispatcher>();
                 services.AddSingleton<NotificationPublisher>();
+                services.AddSingleton<IMediator, Mediator>();
 
                 return services;
             }

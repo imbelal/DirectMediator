@@ -11,6 +11,8 @@ A zero-reflection mediator for .NET powered by **C# source generators**. DirectM
 - 💉 **DI-first** — single `AddDirectMediator()` call registers every handler and dispatcher
 - 📦 **Lightweight** — no external runtime dependencies beyond `Microsoft.Extensions.DependencyInjection`
 - 🔀 **CQRS-ready** — first-class support for Commands, Queries, and Notifications
+- 🎯 **Unified interface** — single `IMediator` combining Send and Publish for easy injection and mocking
+- 🔗 **Pipeline behaviors** — add cross-cutting concerns (logging, validation, caching) via `IPipelineBehavior<TRequest, TResponse>`
 
 ---
 
@@ -20,7 +22,7 @@ DirectMediator uses an [Incremental Source Generator](https://learn.microsoft.co
 
 1. Discovers every class that implements `IRequestHandler<TRequest, TResponse>` or `INotificationHandler<TNotification>`.
 2. Emits compile-time diagnostics if handlers are duplicated or missing.
-3. Generates a `CommandDispatcher`, a `QueryDispatcher`, a `NotificationPublisher`, and an `AddDirectMediator()` extension method — all inside the `DirectMediator.Generated` namespace.
+3. Generates dispatchers (`CommandDispatcher`, `QueryDispatcher`, `NotificationPublisher`), a unified `Mediator`, and an `AddDirectMediator()` extension method — all inside the `DirectMediator.Generated` namespace.
 
 Because the routing code is generated as plain C# `switch` expressions, the JIT can inline and optimize it just like hand-written code.
 
@@ -123,29 +125,37 @@ public class OrderCreatedHandler : INotificationHandler<OrderCreatedNotification
 Call `AddDirectMediator()` once during startup. The source generator automatically includes every handler it discovers.
 
 ```csharp
+using DirectMediator;
 using DirectMediator.Generated;
 using Microsoft.Extensions.DependencyInjection;
 
 var services = new ServiceCollection();
 
-// Registers all handlers, CommandDispatcher, QueryDispatcher, and NotificationPublisher
+// Registers all handlers, CommandDispatcher, QueryDispatcher, NotificationPublisher, and IMediator
 services.AddDirectMediator();
 
 var provider = services.BuildServiceProvider();
 
-var commandDispatcher = provider.GetRequiredService<CommandDispatcher>();
-var queryDispatcher   = provider.GetRequiredService<QueryDispatcher>();
-var publisher         = provider.GetRequiredService<NotificationPublisher>();
+// --- Recommended: inject the unified IMediator interface ---
+var mediator = provider.GetRequiredService<IMediator>();
 
-// Send a command
-await commandDispatcher.Send(new CreateOrderCommand("Tile"));
+// Send a command (returns Unit)
+await mediator.Send(new CreateOrderCommand("Tile"));
 
-// Execute a query
-string result = await queryDispatcher.Query(new GetOrderQuery(123));
+// Execute a query (returns the typed response)
+string result = await mediator.Send(new GetOrderQuery(123));
 Console.WriteLine($"Query result: {result}");
 
 // Publish a notification
-await publisher.Publish(new OrderCreatedNotification("Tile"));
+await mediator.Publish(new OrderCreatedNotification("Tile"));
+```
+
+The individual dispatchers are still available if you need to inject only part of the API:
+
+```csharp
+var commandDispatcher = provider.GetRequiredService<CommandDispatcher>();
+var queryDispatcher   = provider.GetRequiredService<QueryDispatcher>();
+var publisher         = provider.GetRequiredService<NotificationPublisher>();
 ```
 
 ---
@@ -189,6 +199,71 @@ Notifications are published through `INotificationPublisher.Publish<TNotificatio
 
 `Unit` is a value type used as the return type for commands (equivalent to `void`). Access the singleton value via `Unit.Value`.
 
+### IMediator
+
+`IMediator` is the unified injectable abstraction. It combines command dispatch, query dispatch, and notification publishing into a single interface, which is especially useful for:
+
+- **Controller / service injection** — inject one interface instead of three
+- **Unit testing** — mock only `IMediator` rather than multiple dispatchers
+
+```csharp
+public interface IMediator : INotificationPublisher
+{
+    Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
+}
+```
+
+Commands produce a `Unit` result; queries produce their typed response. Both go through the same `Send` method.
+
+```csharp
+// In a controller or service:
+public class OrdersController
+{
+    private readonly IMediator _mediator;
+    public OrdersController(IMediator mediator) => _mediator = mediator;
+
+    public async Task Create(string product)
+        => await _mediator.Send(new CreateOrderCommand(product));
+
+    public async Task<string> Get(int id)
+        => await _mediator.Send(new GetOrderQuery(id));
+}
+```
+
+### Pipeline Behaviors
+
+Pipeline behaviors let you add cross-cutting concerns that wrap every request passing through the mediator — logging, validation, caching, exception handling, and more. They are inspired by ASP.NET Core middleware.
+
+Implement `IPipelineBehavior<TRequest, TResponse>` and register it with DI:
+
+```csharp
+using DirectMediator;
+
+public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
+{
+    public async Task<TResponse> Handle(
+        TRequest request,
+        CancellationToken cancellationToken,
+        RequestHandlerDelegate<TResponse> next)
+    {
+        Console.WriteLine($"Handling {typeof(TRequest).Name}");
+        var response = await next();
+        Console.WriteLine($"Handled {typeof(TRequest).Name}");
+        return response;
+    }
+}
+```
+
+Register with DI (open-generic registration covers all request types):
+
+```csharp
+services.AddDirectMediator();
+services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+```
+
+Multiple behaviors execute in registration order (first registered = outermost wrapper).
+
 ---
 
 ## Dependency Injection
@@ -196,15 +271,20 @@ Notifications are published through `INotificationPublisher.Publish<TNotificatio
 The generated `AddDirectMediator()` extension method on `IServiceCollection`:
 
 - Registers every discovered handler as **transient**
-- Registers `CommandDispatcher`, `QueryDispatcher`, and `NotificationPublisher` as **singletons**
+- Registers `CommandDispatcher`, `QueryDispatcher`, `NotificationPublisher`, and `Mediator` as **singletons**
+- Registers `IMediator` → `Mediator` as a **singleton**
 
 ```csharp
 services.AddDirectMediator();
 ```
 
-All three dispatchers are available directly from the DI container:
+All dispatchers and the unified mediator are available from the DI container:
 
 ```csharp
+// Unified interface (recommended)
+var mediator = provider.GetRequiredService<IMediator>();
+
+// Individual dispatchers (still fully supported)
 var commandDispatcher = provider.GetRequiredService<CommandDispatcher>();
 var queryDispatcher   = provider.GetRequiredService<QueryDispatcher>();
 var publisher         = provider.GetRequiredService<NotificationPublisher>();
@@ -230,9 +310,10 @@ These errors appear as standard MSBuild/IDE errors — you will see them in the 
 
 At build time, the generator emits a file called `DirectMediator.Generated.g.cs` inside the `DirectMediator.Generated` namespace. It contains:
 
-- **`CommandDispatcher`** — implements `ICommandDispatcher`, routes each command type to its handler via a `switch` expression.
-- **`QueryDispatcher`** — implements `IQueryDispatcherMarker`, exposes a strongly-typed `Query(...)` method per query type.
+- **`CommandDispatcher`** — implements `ICommandDispatcher`, routes each command type through the behavior pipeline to its handler via a `switch` expression.
+- **`QueryDispatcher`** — implements `IQueryDispatcherMarker`, exposes a strongly-typed `Query(...)` method per query type, wrapped in the behavior pipeline.
 - **`NotificationPublisher`** — implements `INotificationPublisher`, fans out each notification to all registered handlers via a `switch` statement.
+- **`Mediator`** — implements `IMediator`, provides a unified `Send<TResponse>` that dispatches both commands and queries through the behavior pipeline, plus `Publish` for notifications.
 - **`DirectMediatorServiceCollectionExtensions`** — provides the `AddDirectMediator()` extension method.
 
 Example (abbreviated) for the sample project:
@@ -244,51 +325,59 @@ namespace DirectMediator.Generated
     public sealed class CommandDispatcher : ICommandDispatcher
     {
         private readonly CreateOrderHandler _createOrderHandler;
+        private readonly IServiceProvider _serviceProvider;
 
-        public CommandDispatcher(CreateOrderHandler createOrderHandler)
-            => _createOrderHandler = createOrderHandler;
+        public CommandDispatcher(CreateOrderHandler createOrderHandler, IServiceProvider serviceProvider)
+        {
+            _createOrderHandler = createOrderHandler;
+            _serviceProvider = serviceProvider;
+        }
 
         public Task Send<TCommand>(TCommand command, CancellationToken ct = default)
             where TCommand : ICommand
         {
             return command switch
             {
-                CreateOrderCommand c => _createOrderHandler.Handle(c, ct),
-                _ => throw new InvalidOperationException($"No handler found for command type '{typeof(TCommand).Name}'")
+                CreateOrderCommand c => RunPipeline<CreateOrderCommand, Unit>(c, _createOrderHandler, ct),
+                _ => throw new InvalidOperationException(...)
             };
         }
+
+        // Builds and executes the behavior pipeline. Behaviors reversed so first-registered = outermost.
+        private Task<TResponse> RunPipeline<TRequest, TResponse>(
+            TRequest request, IRequestHandler<TRequest, TResponse> handler, CancellationToken ct)
+            where TRequest : IRequest<TResponse>
+        {
+            var behaviors = _serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()
+                                            .Reverse().ToList();
+            RequestHandlerDelegate<TResponse> next = () => handler.Handle(request, ct);
+            foreach (var b in behaviors)
+            {
+                var prev = next;
+                next = () => b.Handle(request, ct, prev);
+            }
+            return next();
+        }
     }
 
-    public sealed class QueryDispatcher : IQueryDispatcherMarker
+    public sealed class Mediator : IMediator
     {
-        private readonly GetOrderHandler _getOrderHandler;
+        // constructor omitted for brevity
 
-        public QueryDispatcher(GetOrderHandler getOrderHandler)
-            => _getOrderHandler = getOrderHandler;
-
-        public Task<string> Query(GetOrderQuery query, CancellationToken ct = default)
-            => _getOrderHandler.Handle(query, ct);
-    }
-
-    public sealed class NotificationPublisher : INotificationPublisher
-    {
-        private readonly OrderCreatedHandler _orderCreatedHandler;
-
-        public NotificationPublisher(OrderCreatedHandler orderCreatedHandler)
-            => _orderCreatedHandler = orderCreatedHandler;
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken ct = default)
+        {
+            return request switch
+            {
+                CreateOrderCommand r => (Task<TResponse>)(object)RunPipeline<CreateOrderCommand, Unit>(r, _createOrderHandler, ct),
+                GetOrderQuery r      => (Task<TResponse>)(object)RunPipeline<GetOrderQuery, string>(r, _getOrderHandler, ct),
+                _ => throw new InvalidOperationException(...)
+            };
+        }
 
         public async Task Publish<TNotification>(TNotification notification, CancellationToken ct = default)
-            where TNotification : INotification
-        {
-            switch (notification)
-            {
-                case OrderCreatedNotification n:
-                    await _orderCreatedHandler.Handle(n, ct);
-                    break;
-                default:
-                    throw new InvalidOperationException($"No handlers found for notification type '{typeof(TNotification).Name}'");
-            }
-        }
+            where TNotification : INotification { /* switch over notification handlers */ }
+
+        // RunPipeline same as CommandDispatcher above
     }
 }
 ```
@@ -309,6 +398,9 @@ DirectMediator/
 │   ├── ICommandDispatcher.cs         # Command dispatcher interface
 │   ├── INotificationPublisher.cs     # Notification publisher interface
 │   ├── IQueryDispatcherMarker.cs     # Query dispatcher marker interface
+│   ├── IMediator.cs                  # Unified mediator interface (Send + Publish)
+│   ├── IPipelineBehavior.cs          # Pipeline behavior interface
+│   ├── RequestHandlerDelegate.cs     # Delegate used in pipeline behaviors
 │   └── Unit.cs                       # Unit value type
 │
 ├── DirectMediator.Generator/           # Roslyn incremental source generator
@@ -329,7 +421,9 @@ DirectMediator/
 └── DirectMediator.Tests/               # Unit tests (xUnit)
     ├── CommandDispatcherTests.cs
     ├── QueryDispatcherTests.cs
-    └── NotificationPublisherTests.cs
+    ├── NotificationPublisherTests.cs
+    ├── PipelineBehaviorTests.cs
+    └── MediatorTests.cs
 ```
 
 ---
