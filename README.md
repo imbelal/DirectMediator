@@ -9,11 +9,12 @@ A zero-reflection mediator for .NET powered by **C# source generators**. DirectM
 - ⚡ **Zero reflection** — all routing is generated at compile time
 - 🔒 **Compile-time safety** — errors for duplicate or missing handlers are reported as build errors
 - 💉 **DI-first** — single `AddDirectMediator()` call registers every handler and dispatcher
-- 📦 **Lightweight** — no external runtime dependencies beyond `Microsoft.Extensions.DependencyInjection`
+- 📦 **Lightweight** — core has no external runtime dependencies beyond `Microsoft.Extensions.DependencyInjection`; built-in behaviors add only `Microsoft.Extensions.Logging` / `Microsoft.Extensions.Caching.Memory` when opted in
 - 🔀 **CQRS-ready** — first-class support for Commands, Queries, and Notifications
 - 🎯 **Unified interface** — single `IMediator` combining Send and Publish for easy injection and mocking
 - 🔗 **Compile-time pipeline** — `IPipelineBehavior<TRequest, TResponse>` chains are built **once at construction** (no per-dispatch reflection or service location)
-- 📋 **Built-in behaviors** — opt-in `LoggingBehavior` and `PerformanceBehavior` ready to use
+- 📋 **Built-in behaviors** — opt-in `LoggingBehavior`, `PerformanceBehavior`, and `CachingBehavior` ready to use
+- 💾 **Response caching** — implement `ICacheableRequest<TResponse>` on any query to get automatic in-memory caching with a per-request configurable TTL
 
 ---
 
@@ -289,6 +290,13 @@ services.AddDirectMediator()
         .AddDirectMediatorLogging()              // ILogger-based request tracing
         .AddDirectMediatorPerformanceBehavior()  // warns on slow requests
         .AddDirectMediatorCaching();             // in-memory response caching (default TTL: 5 min)
+```
+
+Override the global default TTL by passing a `defaultCacheDuration` to `AddDirectMediatorCaching()`:
+
+```csharp
+services.AddDirectMediator()
+        .AddDirectMediatorCaching(defaultCacheDuration: TimeSpan.FromMinutes(10));
 ```
 
 Adjust the slow-request threshold per-instance via the constructor:
