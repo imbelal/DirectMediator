@@ -1,11 +1,17 @@
 using DirectMediator;
 using DirectMediator.Generated;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 var services = new ServiceCollection();
 
 // ✅ Auto-register all handlers + dispatchers + IMediator
 services.AddDirectMediator();
+
+// ✅ Opt-in to built-in behaviors (requires logging to be configured)
+services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Information));
+services.AddDirectMediatorLogging();              // traces every request via ILogger
+services.AddDirectMediatorPerformanceBehavior();  // warns when a request is slow
 
 var provider = services.BuildServiceProvider();
 

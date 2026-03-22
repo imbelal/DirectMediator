@@ -12,7 +12,8 @@ A zero-reflection mediator for .NET powered by **C# source generators**. DirectM
 - 📦 **Lightweight** — no external runtime dependencies beyond `Microsoft.Extensions.DependencyInjection`
 - 🔀 **CQRS-ready** — first-class support for Commands, Queries, and Notifications
 - 🎯 **Unified interface** — single `IMediator` combining Send and Publish for easy injection and mocking
-- 🔗 **Pipeline behaviors** — add cross-cutting concerns (logging, validation, caching) via `IPipelineBehavior<TRequest, TResponse>`
+- 🔗 **Compile-time pipeline** — `IPipelineBehavior<TRequest, TResponse>` chains are built **once at construction** (no per-dispatch reflection or service location)
+- 📋 **Built-in behaviors** — opt-in `LoggingBehavior` and `PerformanceBehavior` ready to use
 
 ---
 
@@ -234,12 +235,16 @@ public class OrdersController
 
 Pipeline behaviors let you add cross-cutting concerns that wrap every request passing through the mediator — logging, validation, caching, exception handling, and more. They are inspired by ASP.NET Core middleware.
 
+The pipeline chain is **built once at dispatcher construction time** as a delegate chain. There is no per-dispatch reflection or `GetServices` call; dispatching is a direct delegate invocation.
+
+#### Custom behavior
+
 Implement `IPipelineBehavior<TRequest, TResponse>` and register it with DI:
 
 ```csharp
 using DirectMediator;
 
-public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
     public async Task<TResponse> Handle(
@@ -247,22 +252,49 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
         CancellationToken cancellationToken,
         RequestHandlerDelegate<TResponse> next)
     {
-        Console.WriteLine($"Handling {typeof(TRequest).Name}");
+        // pre-processing (e.g., validate request)
         var response = await next();
-        Console.WriteLine($"Handled {typeof(TRequest).Name}");
+        // post-processing
         return response;
     }
 }
 ```
 
-Register with DI (open-generic registration covers all request types):
+Register with DI (open-generic covers all request types):
 
 ```csharp
 services.AddDirectMediator();
-services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 ```
 
 Multiple behaviors execute in registration order (first registered = outermost wrapper).
+
+#### Built-in behaviors
+
+DirectMediator ships two ready-to-use behaviors in the `DirectMediator.Abstractions` package:
+
+| Behavior | Description |
+|----------|-------------|
+| `LoggingBehavior<TRequest,TResponse>` | Logs `Handling` / `Handled` messages and errors via `ILogger<TRequest>` |
+| `PerformanceBehavior<TRequest,TResponse>` | Logs a warning when a request exceeds a configurable threshold (default: 500 ms) |
+
+Opt-in with the provided extension methods (requires `services.AddLogging()` to be configured):
+
+```csharp
+services.AddDirectMediator()
+        .AddDirectMediatorLogging()              // ILogger-based request tracing
+        .AddDirectMediatorPerformanceBehavior(); // warns on slow requests
+```
+
+Adjust the slow-request threshold per-instance via the constructor:
+
+```csharp
+// Register with a custom 200 ms threshold for CreateOrderCommand
+services.AddSingleton<IPipelineBehavior<CreateOrderCommand, Unit>>(sp =>
+    new PerformanceBehavior<CreateOrderCommand, Unit>(
+        sp.GetRequiredService<ILogger<CreateOrderCommand>>(),
+        slowThresholdMs: 200));
+```
 
 ---
 
@@ -388,7 +420,7 @@ namespace DirectMediator.Generated
 
 ```
 DirectMediator/
-├── DirectMediator.Abstractions/        # Public interfaces and value types
+├── DirectMediator.Abstractions/        # Public interfaces, value types, and built-in behaviors
 │   ├── IRequest.cs                   # Base request interface
 │   ├── ICommand.cs                   # Command marker interface
 │   ├── IQuery.cs                     # Query interface
@@ -401,6 +433,9 @@ DirectMediator/
 │   ├── IMediator.cs                  # Unified mediator interface (Send + Publish)
 │   ├── IPipelineBehavior.cs          # Pipeline behavior interface
 │   ├── RequestHandlerDelegate.cs     # Delegate used in pipeline behaviors
+│   ├── LoggingBehavior.cs            # Built-in: logs Handling/Handled/Error via ILogger
+│   ├── PerformanceBehavior.cs        # Built-in: warns when request exceeds configurable threshold
+│   ├── BehaviorServiceCollectionExtensions.cs  # AddDirectMediatorLogging() / AddDirectMediatorPerformanceBehavior()
 │   └── Unit.cs                       # Unit value type
 │
 ├── DirectMediator.Generator/           # Roslyn incremental source generator
@@ -422,7 +457,7 @@ DirectMediator/
     ├── CommandDispatcherTests.cs
     ├── QueryDispatcherTests.cs
     ├── NotificationPublisherTests.cs
-    ├── PipelineBehaviorTests.cs
+    ├── PipelineBehaviorTests.cs        # Custom behaviors + built-in LoggingBehavior/PerformanceBehavior
     └── MediatorTests.cs
 ```
 
